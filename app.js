@@ -32,7 +32,12 @@ const state = {
   fields: sampleFields,
   editingId: null,
   deletingId: null,
+  sortFields: [
+    { field: "SoHopDong", direction: "asc" },
+    { field: "LoaiHS", direction: "asc" },
+  ],
 };
+const numericFields = new Set(["id", "GiaTriHS", "TyLeTamUng", "TamUng"]);
 const $ = (id) => document.getElementById(id);
 const cookies = {
   get: (key) =>
@@ -49,11 +54,18 @@ const cookies = {
       encodeURIComponent(value) +
       "; max-age=31536000; path=/; SameSite=Lax";
   },
+  remove: (key) => {
+    document.cookie =
+      key + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";
+  },
 };
+cookies.remove("sb_secret_key");
+const defaultSupabaseUrl =
+  "https://zjddgdqnqmzyafeoaiej.supabase.co/rest/v1/";
 const config = {
-  url: decodeURIComponent(cookies.get("sb_url")),
-  key: decodeURIComponent(cookies.get("sb_key")),
-  table: decodeURIComponent(cookies.get("sb_table")) || "hopdong",
+  url: decodeURIComponent(cookies.get("sb_url")) || defaultSupabaseUrl,
+  publicKey: decodeURIComponent(cookies.get("sb_public_key")),
+  table: decodeURIComponent(cookies.get("sb_table")) || "db_hopdongban",
 };
 function apiBase() {
   let url = config.url.trim().replace(/\/$/, "");
@@ -62,8 +74,7 @@ function apiBase() {
 }
 function headers() {
   return {
-    apikey: config.key,
-    Authorization: "Bearer " + config.key,
+    apikey: config.publicKey,
     "Content-Type": "application/json",
     Prefer: "return=representation",
   };
@@ -93,6 +104,28 @@ function escapeHtml(value) {
       ],
   );
 }
+function hasValue(value) {
+  return value !== null && value !== undefined && value !== "";
+}
+function compareValues(left, right, field) {
+  if (!hasValue(left) && !hasValue(right)) return 0;
+  if (!hasValue(left)) return 1;
+  if (!hasValue(right)) return -1;
+  if (numericFields.has(field)) return Number(left) - Number(right);
+  return String(left).localeCompare(String(right), "vi", {
+    sensitivity: "base",
+    numeric: true,
+  });
+}
+function sortRows(rows) {
+  return [...rows].sort((left, right) => {
+    for (const sortItem of state.sortFields) {
+      const result = compareValues(left[sortItem.field], right[sortItem.field], sortItem.field);
+      if (result !== 0) return result * (sortItem.direction === "asc" ? 1 : -1);
+    }
+    return 0;
+  });
+}
 function renderTable() {
   $("rowCount").textContent = state.rows.length.toLocaleString("vi-VN");
   $("dataState").textContent = "Đã đồng bộ";
@@ -108,16 +141,33 @@ function renderTable() {
       '<div class="empty">Chưa có dữ liệu trong bảng này.</div>';
     return;
   }
-  const displayFields = state.fields.filter(
-    (field) => field !== "DanhSachCon" || state.rows.some((row) => row[field]),
+  const displayFields = state.fields.filter((field) =>
+    state.rows.some((row) => hasValue(row[field])),
   );
   $("tableArea").innerHTML =
     "<table><thead><tr>" +
     displayFields
-      .map((field) => "<th>" + escapeHtml(field) + "</th>")
+      .map(
+        (field) =>
+          '<th class="' +
+          (numericFields.has(field) ? "numeric" : "") +
+          '" data-sort-field="' +
+          escapeHtml(field) +
+          '"><button class="sort-button" type="button">' +
+          escapeHtml(field) +
+          (() => {
+            const sortIndex = state.sortFields.findIndex(
+              (sortItem) => sortItem.field === field,
+            );
+            if (sortIndex === -1) return "";
+            const direction = state.sortFields[sortIndex].direction === "asc" ? "↑" : "↓";
+            return " " + direction + (state.sortFields.length > 1 ? sortIndex + 1 : "");
+          })() +
+          "</button></th>",
+      )
       .join("") +
     "<th>Thao tác</th></tr></thead><tbody>" +
-    state.rows
+    sortRows(state.rows)
       .map(
         (row) =>
           "<tr>" +
@@ -125,9 +175,14 @@ function renderTable() {
             .map(
               (field) =>
                 '<td class="' +
-                (field === "ThongTinChiTiet" || field === "NoiDungHangMuc"
-                  ? "wrap"
-                  : "") +
+                [
+                  field === "ThongTinChiTiet" || field === "NoiDungHangMuc"
+                    ? "wrap"
+                    : "",
+                  numericFields.has(field) ? "numeric" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") +
                 '">' +
                 (field === "id"
                   ? "<strong>" + formatValue(row[field], field) + "</strong>"
@@ -153,10 +208,32 @@ function renderTable() {
     .forEach((button) =>
       button.addEventListener("click", () => openDelete(button.dataset.delete)),
     );
+  document.querySelectorAll("[data-sort-field]").forEach((header) =>
+    header.addEventListener("click", (event) => {
+      const field = header.dataset.sortField;
+      const existing = state.sortFields.find((sortItem) => sortItem.field === field);
+      if (event.shiftKey) {
+        if (existing) {
+          existing.direction = existing.direction === "asc" ? "desc" : "asc";
+        } else {
+          state.sortFields.push({ field, direction: "asc" });
+        }
+        state.sortFields.sort(
+          (left, right) =>
+            displayFields.indexOf(left.field) - displayFields.indexOf(right.field),
+        );
+      } else if (existing && state.sortFields.length === 1) {
+        existing.direction = existing.direction === "asc" ? "desc" : "asc";
+      } else {
+        state.sortFields = [{ field, direction: "asc" }];
+      }
+      renderTable();
+    }),
+  );
 }
 async function loadRows() {
   clearNotice();
-  if (!config.url || !config.key) {
+  if (!config.url || !config.publicKey) {
     $("tableArea").innerHTML =
       '<div class="empty">Hãy mở tab <b>Cài đặt kết nối</b> để nhập thông tin Supabase.</div>';
     $("dataState").textContent = "Chưa kết nối";
@@ -166,7 +243,7 @@ async function loadRows() {
   try {
     const response = await fetch(
       apiBase() + "/" + encodeURIComponent(config.table) + "?select=*",
-      { headers: headers() },
+      { headers: headers("read") },
     );
     if (!response.ok) throw new Error(await response.text());
     const data = await response.json();
@@ -187,6 +264,8 @@ async function loadRows() {
 }
 function openEdit(id) {
   state.editingId = id;
+  $("saveError").textContent = "";
+  $("saveError").classList.remove("show");
   const row = state.rows.find((item) => String(item.id) === String(id));
   $("modalTitle").textContent = row ? "Sửa hồ sơ #" + id : "Thêm hồ sơ";
   const fields = state.fields.filter((field) => field !== "id" || !row);
@@ -246,6 +325,11 @@ function closeModal(id) {
 }
 async function saveRecord(event) {
   event.preventDefault();
+  const saveButton = event.currentTarget.querySelector('button[type="submit"]');
+  saveButton.disabled = true;
+  saveButton.textContent = "Đang lưu...";
+  $("saveError").textContent = "";
+  $("saveError").classList.remove("show");
   const payload = {};
   document.querySelectorAll("#recordFields [data-field]").forEach((input) => {
     if (input.value !== "")
@@ -255,25 +339,40 @@ async function saveRecord(event) {
   });
   const editing = state.editingId !== null;
   try {
+    if (!config.publicKey) throw new Error("Chưa nhập Public API key.");
     const url =
       apiBase() +
       "/" +
       encodeURIComponent(config.table) +
-      (editing ? "?id=eq." + encodeURIComponent(state.editingId) : "");
+      (editing
+        ? "?id=eq." + encodeURIComponent(state.editingId) + "&select=*"
+        : "?select=*");
     const response = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: headers(),
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(await response.text());
+    const responseText = await response.text();
+    const savedRows = responseText ? JSON.parse(responseText) : [];
+    if (editing && (!Array.isArray(savedRows) || savedRows.length === 0)) {
+      throw new Error(
+        "Không có bản ghi nào được cập nhật. Kiểm tra quyền UPDATE (RLS) và mã id.",
+      );
+    }
     closeModal("editModal");
     await loadRows();
   } catch (error) {
-    showNotice("Không thể lưu hồ sơ: " + error.message);
+    $("saveError").textContent = "Không thể lưu hồ sơ: " + error.message;
+    $("saveError").classList.add("show");
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = "Lưu hồ sơ";
   }
 }
 async function deleteRecord() {
   try {
+    if (!config.publicKey) throw new Error("Chưa nhập Public API key.");
     const response = await fetch(
       apiBase() +
         "/" +
@@ -302,10 +401,10 @@ document.querySelectorAll(".tab").forEach((tab) =>
 $("settingsForm").addEventListener("submit", (event) => {
   event.preventDefault();
   config.url = $("apiUrl").value.trim();
-  config.key = $("apiKey").value.trim();
-  config.table = $("tableName").value.trim() || "hopdong";
+  config.publicKey = $("publicApiKey").value.trim();
+  config.table = $("tableName").value.trim() || "db_hopdongban";
   cookies.set("sb_url", config.url);
-  cookies.set("sb_key", config.key);
+  cookies.set("sb_public_key", config.publicKey);
   cookies.set("sb_table", config.table);
   $("savedText").textContent = "Đã lưu trong cookie";
   document.querySelector('[data-tab="data"]').click();
@@ -326,6 +425,6 @@ document.querySelectorAll(".modal-backdrop").forEach((backdrop) =>
   }),
 );
 $("apiUrl").value = config.url;
-$("apiKey").value = config.key;
+$("publicApiKey").value = config.publicKey;
 $("tableName").value = config.table;
 loadRows();
