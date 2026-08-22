@@ -1,0 +1,535 @@
+:root {
+    --ink: #17221f;
+    --muted: #69756f;
+    --line: #d9e2dc;
+    --paper: #f7f8f3;
+    --panel: #ffffff;
+    --teal: #0d766e;
+    --teal-dark: #095b55;
+    --yellow: #f4c95d;
+    --red: #bd4b40;
+    --shadow: 0 18px 48px rgba(37, 57, 48, .09);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    color: var(--ink);
+    background: var(--paper);
+    font: 14px/1.5 "Segoe UI", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.shell {
+    min-height: 100vh;
+}
+
+.topbar {
+    height: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 42px;
+    background: #132d2a;
+    color: white;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+}
+
+.brand-mark {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--yellow);
+    color: #20352f;
+    font-size: 19px;
+    font-weight: 800;
+}
+
+.brand h1 {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.brand small {
+    display: block;
+    color: #a6c3ba;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.connection {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #c4ddd5;
+    font-size: 12px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--yellow);
+}
+
+.dot.online {
+    background: #73d2a3;
+}
+
+main {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 34px 42px 60px;
+}
+
+.tabs {
+    display: flex;
+    gap: 5px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+}
+
+.tab {
+    border: 0;
+    border-bottom: 3px solid transparent;
+    padding: 11px 17px 13px;
+    background: none;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.tab.active {
+    border-color: var(--teal);
+    color: var(--teal-dark);
+}
+
+.view {
+    display: none;
+}
+
+.view.active {
+    display: block;
+    animation: appear .25s ease-out;
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+h2 {
+    margin: 0 0 5px;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.subtitle {
+    margin: 0;
+    color: var(--muted);
+}
+
+.toolbar {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 14px;
+    background: white;
+    color: var(--ink);
+    font-weight: 600;
+    transition: .15s ease;
+}
+
+.btn:hover {
+    border-color: var(--teal);
+    color: var(--teal-dark);
+    transform: translateY(-1px);
+}
+
+.btn.primary {
+    border-color: var(--teal);
+    background: var(--teal);
+    color: white;
+}
+
+.btn.primary:hover {
+    background: var(--teal-dark);
+}
+
+.btn.danger {
+    color: var(--red);
+}
+
+.btn.icon {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 17px;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 13px;
+    margin-bottom: 20px;
+}
+
+.metric {
+    padding: 17px 19px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.metric label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.metric strong {
+    display: block;
+    margin-top: 2px;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 25px;
+    font-weight: 600;
+}
+
+.table-wrap {
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    box-shadow: var(--shadow);
+}
+
+table {
+    width: 100%;
+    min-width: 1080px;
+    border-collapse: collapse;
+}
+
+th {
+    padding: 13px 15px;
+    background: #edf3ee;
+    color: #53635d;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+td {
+    max-width: 270px;
+    padding: 15px;
+    border-top: 1px solid #edf0ec;
+    vertical-align: top;
+}
+
+tr:hover td {
+    background: #fbfcf9;
+}
+
+th:last-child,
+td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    min-width: 106px;
+    box-shadow: -8px 0 12px -12px rgba(23, 34, 31, .7);
+}
+
+th:last-child {
+    background: #edf3ee;
+}
+
+td:last-child {
+    background: white;
+}
+
+tr:hover td:last-child {
+    background: #fbfcf9;
+}
+
+td strong {
+    font-weight: 650;
+}
+
+.muted {
+    color: #a2ada7;
+}
+
+.wrap {
+    white-space: pre-line;
+}
+
+.actions {
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.empty,
+.loading {
+    padding: 60px 20px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.notice {
+    display: none;
+    margin: 0 0 18px;
+    padding: 12px 15px;
+    border-left: 4px solid var(--red);
+    background: #fff0ed;
+    color: #81382f;
+}
+
+.notice.show {
+    display: block;
+}
+
+.settings {
+    max-width: 760px;
+}
+
+.settings-panel {
+    padding: 26px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    box-shadow: var(--shadow);
+}
+
+.settings-panel h3 {
+    margin: 0 0 5px;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.settings-panel>p {
+    margin: 0 0 22px;
+    color: var(--muted);
+}
+
+.field {
+    margin-bottom: 17px;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #40534b;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.field input,
+.field textarea,
+.field select {
+    width: 100%;
+    border: 1px solid #cbd8d0;
+    border-radius: 5px;
+    padding: 11px 12px;
+    outline: none;
+    background: #fcfdfa;
+    color: var(--ink);
+}
+
+.field input:focus,
+.field textarea:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(13, 118, 110, .1);
+}
+
+.field textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.hint {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.settings-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 25px;
+}
+
+.saved {
+    color: var(--teal);
+    font-size: 12px;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    display: none;
+    place-items: center;
+    padding: 20px;
+    background: rgba(16, 34, 30, .48);
+}
+
+.modal-backdrop.open {
+    display: grid;
+}
+
+.modal {
+    width: min(700px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 25px;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, .2);
+}
+
+.modal h3 {
+    margin: 0 0 4px;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 25px;
+    font-weight: 600;
+}
+
+.modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 20px;
+}
+
+.modal-head p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 14px;
+}
+
+.form-grid .wide {
+    grid-column: 1 / -1;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: end;
+    gap: 9px;
+    margin-top: 9px;
+    padding-top: 17px;
+    border-top: 1px solid var(--line);
+}
+
+.confirm {
+    width: min(430px, 100%);
+}
+
+.confirm p {
+    color: var(--muted);
+}
+
+@media (max-width: 720px) {
+    .topbar {
+        height: auto;
+        padding: 17px 20px;
+        align-items: start;
+        gap: 12px;
+    }
+
+    .connection {
+        display: none;
+    }
+
+    main {
+        padding: 25px 18px 45px;
+    }
+
+    .heading {
+        display: block;
+    }
+
+    .heading .toolbar {
+        margin-top: 18px;
+    }
+
+    h2 {
+        font-size: 28px;
+    }
+
+    .metrics {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .metric {
+        padding: 12px 15px;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-grid .wide {
+        grid-column: auto;
+    }
+
+    .settings-panel,
+    .modal {
+        padding: 19px;
+    }
+}
