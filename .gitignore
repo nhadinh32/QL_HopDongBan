@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*** Add File: .env.example
+# Public values are supplied by each user in the app settings and retained only in browser storage.
