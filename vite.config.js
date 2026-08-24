@@ -4,6 +4,10 @@ import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
+  build: {
+    outDir: 'docs',
+    emptyOutDir: true
+  },
   plugins: [svelte()],
   resolve: {
     alias: {
