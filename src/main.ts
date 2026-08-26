@@ -1,5 +1,8 @@
+/// <reference types="vite/client" />
+
 import { mount } from 'svelte';
 import App from './App.svelte';
+import './app.css';
 
 // Gắn component gốc vào phần tử #app được khai báo trong index.html.
 const target = document.getElementById('app');
