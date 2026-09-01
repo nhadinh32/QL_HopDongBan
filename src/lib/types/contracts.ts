@@ -21,3 +21,28 @@ export interface SortField {
   field: string;
   direction: SortDirection;
 }
+
+// Cấu hình định dạng cột dùng chung cho bảng/biểu mẫu của một module dữ liệu.
+export interface ModuleFieldConfig {
+  numericFields: Set<string>;
+  longTextFields: Set<string>;
+  currencyFields: Set<string>;
+  percentFields: Set<string>;
+  dateFieldExceptions: Set<string>;
+  // Cột dùng để tính tổng hiển thị ở thẻ "Giá trị" trên đầu trang; null nếu module không có.
+  totalValueField: string | null;
+}
+
+// Khai báo một module dữ liệu (một bảng Supabase) hiển thị như một mục trong sidebar.
+// Mỗi module có kết nối Supabase (URL/API key/tên bảng) và cấu hình cột riêng —
+// thêm module mới bằng cách tạo một cấu hình tương tự trong $lib/constants/modules.
+export interface ContractModuleConfig {
+  id: string;
+  label: string;
+  storageKey: string;
+  defaultUrl: string;
+  defaultTable: string;
+  defaultFields: string[];
+  defaultSortFields: SortField[];
+  fieldConfig: ModuleFieldConfig;
+}

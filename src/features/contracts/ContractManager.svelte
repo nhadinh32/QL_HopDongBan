@@ -1,31 +1,52 @@
 <script lang="ts">
-  // Màn hình quản lý hồ sơ hợp đồng: cấu hình kết nối, danh sách và thao tác CRUD.
+  // Màn hình quản lý một module dữ liệu (một bảng Supabase): giữ state/logic nghiệp vụ,
+  // ghép các component UI đã tách. Tổng quát cho mọi module (Hợp đồng bán, Hợp đồng mua, ...)
+  // qua prop `module` — component gốc App.svelte render một AppShell/Sidebar dùng chung ở
+  // ngoài, mỗi mục sidebar mount một ContractManager riêng với module tương ứng.
   import { onMount } from "svelte";
-  import {
-    DEFAULT_FIELDS,
-    LONG_TEXT_FIELDS,
-    NUMERIC_FIELDS,
-  } from "$lib/constants/contract-fields";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
+  import { hasValue } from "$lib/utils/contract-format";
+  import {
+    computeFilterFields,
+    countActiveFilters,
+    matchesFilters,
+    type ColumnFilters,
+  } from "$lib/utils/contract-filters";
   import type {
     ConnectionConfig,
+    ContractModuleConfig,
     ContractRecord,
     ContractValue,
     SortField,
   } from "$lib/types/contracts";
+  import Button from "$lib/components/ui/Button.svelte";
+  import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
+  import StatCards from "./StatCards.svelte";
+  import ContractTable from "./ContractTable.svelte";
+  import ContractFilters from "./ContractFilters.svelte";
+  import ContractFormModal from "./ContractFormModal.svelte";
+  import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
 
-  const defaultUrl = "https://zjddgdqnqmzyafeoaiej.supabase.co/rest/v1/";
-  let activeTab: "data" | "settings" = "data";
-  let rows: ContractRecord[] = [];
-  let fields: string[] = DEFAULT_FIELDS;
-  let sortFields: SortField[] = [
-    { field: "SoHopDong", direction: "asc" },
-    { field: "LoaiHS", direction: "asc" },
+  export let module: ContractModuleConfig;
+
+  // Trạng thái kết nối được bind ra ngoài để App.svelte hiển thị trên badge của topbar chung.
+  export let connected = false;
+  export let connectionLabel = "Chưa kết nối";
+
+  // Ba tab ngang trong một module: tổng quan (thống kê) → danh sách (bảng) → cài đặt kết nối.
+  const tabs: { id: "overview" | "list" | "settings"; label: string }[] = [
+    { id: "overview", label: "Tổng quan" },
+    { id: "list", label: "Danh sách" },
+    { id: "settings", label: "Cài đặt" },
   ];
+  let activeTab: "overview" | "list" | "settings" = "list";
+  let rows: ContractRecord[] = [];
+  let fields: string[] = module.defaultFields;
+  let sortFields: SortField[] = module.defaultSortFields;
   let config: ConnectionConfig = {
-    url: defaultUrl,
+    url: module.defaultUrl,
     publicKey: "",
-    table: "db_hopdongban",
+    table: module.defaultTable,
   };
   let loading = false;
   let notice = "";
@@ -35,10 +56,12 @@
   let formValues: Record<string, string> = {};
   let saveError = "";
   let saving = false;
+  let showFilters = false;
+  let filters: ColumnFilters = {};
 
   // Chỉ đọc cấu hình từ localStorage ở trình duyệt để tránh lỗi khi build tĩnh.
   onMount(() => {
-    const stored = localStorage.getItem("contract-manager-config");
+    const stored = localStorage.getItem(module.storageKey);
     if (stored)
       config = {
         ...config,
@@ -48,28 +71,33 @@
   });
 
   // Các giá trị dẫn xuất tự cập nhật theo dữ liệu và lựa chọn sắp xếp.
-  $: totalValue = rows.reduce(
-    (sum, row) => sum + (Number(row.GiaTriHS) || 0),
-    0,
-  );
+  $: totalValue = module.fieldConfig.totalValueField
+    ? rows.reduce(
+        (sum, row) => sum + (Number(row[module.fieldConfig.totalValueField!]) || 0),
+        0,
+      )
+    : 0;
   $: displayFields = fields.filter((field) =>
     rows.some((row) => hasValue(row[field])),
   );
-  $: sortedRows = sortRows(rows, sortFields);
-
-  const hasValue = (value: ContractValue): boolean =>
-    value !== null && value !== undefined && value !== "";
-  const isDateField = (field: string): boolean =>
-    /^Ngay/.test(field) && field !== "NgayChuyenBuoc_Nam";
-
-  function formatValue(value: ContractValue, field: string): string {
-    if (!hasValue(value)) return "—";
-    if (field === "GiaTriHS" || field === "TamUng")
-      return `${Number(value).toLocaleString("vi-VN")} đ`;
-    if (field === "TyLeTamUng")
-      return `${(Number(value) * 100).toLocaleString("vi-VN")}%`;
-    return String(value);
-  }
+  // Bộ lọc do người dùng chọn/gõ theo từng cột đang hiển thị (id không có ô lọc riêng).
+  $: filterFields = computeFilterFields(
+    displayFields.filter((field) => field !== "id"),
+    rows,
+    module.fieldConfig,
+  );
+  $: activeFilterCount = countActiveFilters(filters, filterFields);
+  $: filteredRows = rows.filter((row) => matchesFilters(row, filters, filterFields));
+  $: sortedRows = sortRows(filteredRows, sortFields);
+  $: connected = Boolean(config.publicKey) && !notice;
+  $: statusLabel = loading
+    ? "Đang tải"
+    : config.publicKey
+      ? notice
+        ? "Lỗi kết nối"
+        : "Đã đồng bộ"
+      : "Chưa kết nối";
+  $: connectionLabel = connected ? `Đã kết nối · ${config.table}` : "Chưa kết nối";
 
   function compareValue(
     left: ContractValue,
@@ -79,7 +107,7 @@
     if (!hasValue(left) && !hasValue(right)) return 0;
     if (!hasValue(left)) return 1;
     if (!hasValue(right)) return -1;
-    return NUMERIC_FIELDS.has(field)
+    return module.fieldConfig.numericFields.has(field)
       ? Number(left) - Number(right)
       : String(left).localeCompare(String(right), "vi", {
           sensitivity: "base",
@@ -124,16 +152,26 @@
 
   // Cấu hình chỉ lưu trên trình duyệt hiện tại, không được đưa vào mã nguồn hay GitHub Pages.
   function saveSettings() {
-    config = { ...config, table: config.table.trim() || "db_hopdongban" };
-    localStorage.setItem("contract-manager-config", JSON.stringify(config));
+    config = { ...config, table: config.table.trim() || module.defaultTable };
+    localStorage.setItem(module.storageKey, JSON.stringify(config));
     savedText = "Đã lưu trên trình duyệt này";
-    activeTab = "data";
+    activeTab = "list";
     loadRows();
+  }
+
+  // Số id nhỏ nhất chưa được dùng, để tự động điền cho hồ sơ mới thay vì cho gõ tự do.
+  function nextAvailableId(): number {
+    const usedIds = new Set(
+      rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id)),
+    );
+    let candidate = 1;
+    while (usedIds.has(candidate)) candidate++;
+    return candidate;
   }
 
   function openCreate() {
     editRecord = null;
-    formValues = {};
+    formValues = { id: String(nextAvailableId()) };
     saveError = "";
   }
 
@@ -156,6 +194,14 @@
     if (record) deleteRecord = record;
   }
 
+  function updateFilter(key: string, value: string): void {
+    filters = { ...filters, [key]: value };
+  }
+
+  function clearFilters(): void {
+    filters = {};
+  }
+
   // Chuẩn hóa chuỗi rỗng thành null và trường số thành number trước khi gửi API.
   async function saveRecord() {
     saving = true;
@@ -169,7 +215,7 @@
             field,
             value === "" || value === undefined
               ? null
-              : NUMERIC_FIELDS.has(field)
+              : module.fieldConfig.numericFields.has(field)
                 ? Number(value)
                 : value,
           ];
@@ -223,233 +269,112 @@
   }
 </script>
 
-<svelte:head><title>Khoản mục hợp đồng | Supabase Manager</title></svelte:head>
+<svelte:head><title>{module.label}</title></svelte:head>
 
-<!-- Khung ứng dụng và hai chế độ: danh sách dữ liệu / cấu hình kết nối. -->
-<div class="shell">
-  <header class="topbar">
-    <div class="brand">
-      <h1>Khoản mục hợp đồng</h1>
-      <small>Database workspace</small>
-    </div>
-    <div class="connection">
-      <span class:online={config.publicKey && !notice} class="dot"
-      ></span>{config.publicKey && !notice
-        ? `Đã kết nối · ${config.table}`
-        : "Chưa kết nối"}
-    </div>
-  </header>
-  <main>
-    <nav class="tabs" aria-label="Điều hướng">
-      <button
-        class:active={activeTab === "data"}
-        on:click={() => (activeTab = "data")}>Dữ liệu</button
-      >
-      <button
-        class:active={activeTab === "settings"}
-        on:click={() => (activeTab = "settings")}>Cài đặt kết nối</button
-      >
-    </nav>
-
-    {#if activeTab === "data"}
-      <section>
-        <div class="heading">
-          <div>
-            <h2>Danh sách hồ sơ</h2>
-            <p>Theo dõi và cập nhật dữ liệu trực tiếp trên Supabase</p>
-          </div>
-          <div class="toolbar">
-            <button class="btn" on:click={loadRows}>↻ Làm mới</button><button
-              class="btn primary"
-              on:click={openCreate}>＋ Thêm hồ sơ</button
-            >
-          </div>
-        </div>
-        {#if notice}<div class="notice" role="alert">{notice}</div>{/if}
-        <div class="metrics">
-          <div class="metric">
-            <span>TỔNG HỒ SƠ</span><strong
-              >{rows.length.toLocaleString("vi-VN")}</strong
-            >
-          </div>
-          <div class="metric">
-            <span>GIÁ TRỊ HỢP ĐỒNG</span><strong
-              >{totalValue
-                ? `${totalValue.toLocaleString("vi-VN")} đ`
-                : "—"}</strong
-            >
-          </div>
-          <div class="metric">
-            <span>TRẠNG THÁI</span><strong
-              >{loading
-                ? "Đang tải"
-                : config.publicKey
-                  ? notice
-                    ? "Lỗi kết nối"
-                    : "Đã đồng bộ"
-                  : "Chưa kết nối"}</strong
-            >
-          </div>
-        </div>
-        <div class="table-wrap">
-          {#if loading}<div class="empty">Đang tải dữ liệu...</div>
-          {:else if !config.publicKey}<div class="empty">
-              Hãy mở tab <b>Cài đặt kết nối</b> để nhập thông tin Supabase.
-            </div>
-          {:else if !rows.length}<div class="empty">
-              Chưa có dữ liệu trong bảng này.
-            </div>
-          {:else}<table>
-              <thead
-                ><tr
-                  >{#each displayFields as field}<th
-                      class:numeric={NUMERIC_FIELDS.has(field)}
-                      ><button
-                        type="button"
-                        on:click={() => toggleSort(field)}
-                        title="Bấm để chuyển: tăng dần, giảm dần, tắt"
-                        >{field}{#each sortFields as item, index}{#if item.field === field}
-                            {item.direction === "asc"
-                              ? "↑"
-                              : "↓"}{sortFields.length > 1
-                              ? index + 1
-                              : ""}{/if}{/each}</button
-                      ></th
-                    >{/each}<th aria-label="Thao tác"></th></tr
-                ></thead
-              ><tbody
-                >{#each sortedRows as row (row.id)}<tr
-                    >{#each displayFields as field}<td
-                        class:numeric={NUMERIC_FIELDS.has(field)}
-                        class:wrap={LONG_TEXT_FIELDS.has(field)}
-                        class:muted={!hasValue(row[field])}
-                        >{formatValue(row[field], field)}</td
-                      >{/each}<td
-                      ><div class="actions">
-                        <button
-                          class="btn icon"
-                          aria-label="Sửa"
-                          on:click={() => openEdit(row)}>✎</button
-                        >
-                      </div></td
-                    ></tr
-                  >{/each}</tbody
-              >
-            </table>{/if}
-        </div>
-      </section>
-    {:else}
-      <section class="settings">
-        <div class="heading">
-          <div>
-            <h2>Cài đặt kết nối</h2>
-            <p>Thông tin được lưu trên trình duyệt này.</p>
-          </div>
-        </div>
-        <div class="settings-panel">
-          <h3>Supabase REST API</h3>
-          <p>Nhập thông tin project và tên bảng để bắt đầu quản lý dữ liệu.</p>
-          <form on:submit|preventDefault={saveSettings}>
-            <label
-              >Supabase API URL<input
-                type="url"
-                bind:value={config.url}
-                required
-                placeholder="https://project.supabase.co/rest/v1/"
-              /></label
-            ><label
-              >Public API key · đọc và chỉnh sửa<input
-                type="password"
-                bind:value={config.publicKey}
-                required
-                placeholder="sb_publishable_..."
-              /></label
-            ><label>Tên bảng<input bind:value={config.table} required /></label>
-            <div class="settings-actions">
-              <span>{savedText}</span><button class="btn primary" type="submit"
-                >Lưu và kết nối</button
-              >
-            </div>
-          </form>
-        </div>
-      </section>
-    {/if}
-  </main>
-</div>
-
-<!-- Modal dùng chung cho tạo mới và cập nhật hồ sơ. -->
-{#if editRecord !== undefined}
-  <div class="backdrop" role="presentation" on:click|self={closeEdit}>
-    <dialog open class="modal" aria-labelledby="edit-title">
-      <div class="modal-head">
-        <div>
-          <h3 id="edit-title">
-            {editRecord ? `Sửa hồ sơ #${editRecord.id}` : "Thêm hồ sơ"}
-          </h3>
-          <p>Nhập giá trị cho các trường dữ liệu.</p>
-        </div>
-        <button class="btn icon" on:click={closeEdit} aria-label="Đóng"
-          >×</button
+<section>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-2xl font-semibold text-slate-900">{module.label}</h2>
+    </div> 
+      <div class="flex gap-2">
+        <Button on:click={loadRows}>↻ Làm mới</Button>
+        <Button on:click={() => (showFilters = !showFilters)}
+          >⏷ Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Button
         >
+        <Button variant="primary" on:click={openCreate}>＋ Thêm hồ sơ</Button>
       </div>
-      <form on:submit|preventDefault={saveRecord}>
-        <div class="form-grid">
-          {#each fields.filter((field) => field !== "id" || !editRecord) as field}<label
-              class:wide={LONG_TEXT_FIELDS.has(field)}
-              >{field}{#if LONG_TEXT_FIELDS.has(field)}<textarea
-                  bind:value={formValues[field]}
-                ></textarea>{:else}<input
-                  type={isDateField(field)
-                    ? "date"
-                    : NUMERIC_FIELDS.has(field)
-                      ? "number"
-                      : "text"}
-                  step={NUMERIC_FIELDS.has(field) ? "any" : undefined}
-                  bind:value={formValues[field]}
-                />{/if}</label
-            >{/each}
-        </div>
-        {#if saveError}<div class="notice">{saveError}</div>{/if}
-        <div class="modal-actions">
-          {#if editRecord}<button
-              type="button"
-              class="btn danger modal-delete"
-              on:click={() => requestDelete(editRecord)}>Xóa hồ sơ</button
-            >{/if}<button type="button" class="btn" on:click={closeEdit}
-            >Hủy</button
-          ><button type="submit" class="btn primary" disabled={saving}
-            >{saving ? "Đang lưu..." : "Lưu hồ sơ"}</button
-          >
-        </div>
-      </form>
-    </dialog>
   </div>
+
+  <div class="mt-4 border-b border-slate-200">
+    <nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="Chuyển tab">
+      {#each tabs as tab}
+        <button
+          type="button"
+          class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab ===
+          tab.id
+            ? 'border-primary-600 text-primary-700'
+            : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'}"
+          on:click={() => (activeTab = tab.id)}
+        >
+          {tab.label}
+        </button>
+      {/each}
+    </nav>
+  </div>
+
+  {#if notice}
+    <div
+      class="mt-6 rounded border-l-4 border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+      role="alert"
+    >
+      {notice}
+    </div>
+  {/if}
+
+  {#if activeTab === "overview"}
+    <div class="mt-2">
+      <StatCards
+        totalRows={rows.length}
+        totalValueLabel={totalValue ? `${totalValue.toLocaleString("vi-VN")} đ` : "—"}
+        {statusLabel}
+      />
+    </div>
+  {:else if activeTab === "list"}
+    <div class="mt-2 space-y-3">
+      {#if showFilters}
+        <ContractFilters
+          {filterFields}
+          {filters}
+          activeCount={activeFilterCount}
+          onChange={updateFilter}
+          onClear={clearFilters}
+        />
+      {/if}
+      {#if activeFilterCount > 0}
+        <p class="text-xs text-slate-500">
+          Hiển thị {sortedRows.length.toLocaleString("vi-VN")}/{rows.length.toLocaleString(
+            "vi-VN",
+          )} hồ sơ khớp bộ lọc.
+        </p>
+      {/if}
+      <ContractTable
+        fields={displayFields}
+        rows={sortedRows}
+        {sortFields}
+        {loading}
+        hasConnection={Boolean(config.publicKey)}
+        fieldConfig={module.fieldConfig}
+        onToggleSort={toggleSort}
+        onEdit={openEdit}
+      />
+    </div>
+  {:else}
+    <div class="mt-2">
+      <ConnectionSettingsPanel {config} {savedText} onSubmit={saveSettings} />
+    </div>
+  {/if}
+</section>
+
+{#if editRecord !== undefined}
+  <ContractFormModal
+    {fields}
+    {editRecord}
+    {formValues}
+    {saveError}
+    {saving}
+    fieldConfig={module.fieldConfig}
+    onClose={closeEdit}
+    onSubmit={saveRecord}
+    onDelete={() => requestDelete(editRecord)}
+  />
 {/if}
 
-<!-- Modal xác nhận giúp tránh xóa nhầm bản ghi. -->
 {#if deleteRecord}
-  <div
-    class="backdrop"
-    role="presentation"
-    on:click|self={() => (deleteRecord = null)}
-  >
-    <dialog open class="modal confirm">
-      <div class="modal-head">
-        <div>
-          <h3>Xóa hồ sơ?</h3>
-          <p>Thao tác này không thể hoàn tác.</p>
-        </div>
-        <button
-          class="btn icon"
-          on:click={() => (deleteRecord = null)}
-          aria-label="Đóng">×</button
-        >
-      </div>
-      <p>Bạn sắp xóa hồ sơ #{deleteRecord.id} khỏi bảng {config.table}.</p>
-      <div class="modal-actions">
-        <button class="btn" on:click={() => (deleteRecord = null)}>Hủy</button
-        ><button class="btn danger" on:click={removeRecord}>Xóa hồ sơ</button>
-      </div>
-    </dialog>
-  </div>
+  <ConfirmDialog
+    title="Xóa hồ sơ?"
+    description={`Bạn sắp xóa hồ sơ #${deleteRecord.id} khỏi bảng ${config.table}.`}
+    confirmLabel="Xóa hồ sơ"
+    onCancel={() => (deleteRecord = null)}
+    onConfirm={removeRecord}
+  />
 {/if}
