@@ -1,0 +1,17 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    { "name": "@tailwind", "description": "Chèn các style base/components/utilities của Tailwind." },
+    { "name": "@apply", "description": "Nhúng các utility class của Tailwind vào một rule CSS." },
+    { "name": "@layer", "description": "Gán style vào layer base/components/utilities." },
+    { "name": "@theme", "description": "Khai báo design token (Tailwind v4) sinh ra CSS variable và utility class tương ứng." },
+    { "name": "@variant", "description": "Áp dụng một Tailwind variant (vd: hover, dark) trong CSS thuần." },
+    { "name": "@source", "description": "Khai báo thêm nguồn file để Tailwind quét class (Tailwind v4)." },
+    { "name": "@utility", "description": "Định nghĩa utility class tuỳ chỉnh (Tailwind v4)." },
+    { "name": "@custom-variant", "description": "Định nghĩa variant tuỳ chỉnh (Tailwind v4)." },
+    { "name": "@plugin", "description": "Đăng ký Tailwind plugin trong CSS (Tailwind v4)." },
+    { "name": "@reference", "description": "Import theme/token để dùng @apply mà không xuất CSS (Tailwind v4)." },
+    { "name": "@config", "description": "Trỏ tới file cấu hình Tailwind (JS config, Tailwind v3)." },
+    { "name": "@screen", "description": "Breakpoint helper của Tailwind (v3)." }
+  ]
+}

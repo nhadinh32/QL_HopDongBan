@@ -12,7 +12,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-5 backdrop-blur-sm"
+  class="fixed inset-0 z-30 flex items-center justify-center bg-primary-900/96 p-5"
   role="presentation"
   on:click|self={onClose}
 >
@@ -20,7 +20,7 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby={labelledBy}
-    class="max-h-[90vh] w-full {sizeClass[size]} overflow-auto rounded border-0 bg-white p-6"
+    class="max-h-[90vh] h-full {sizeClass[size]} rounded border-0 bg-white flex flex-col overflow-hidden"
   >
     <slot />
   </div>

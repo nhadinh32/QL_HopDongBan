@@ -12,7 +12,7 @@
   let sidebarOpen = false;
 </script>
 
-<div class="flex min-h-screen items-stretch bg-slate-50">
+<div class="flex min-h-screen items-stretch bg-slate-100">
   <Sidebar
     items={navItems}
     {active}

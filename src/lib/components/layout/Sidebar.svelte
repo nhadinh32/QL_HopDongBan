@@ -21,7 +21,7 @@
 {/if}
 
 <aside
-  class="fixed inset-y-0 left-0 z-40 flex h-screen w-60 shrink-0 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:self-start {open
+  class="fixed shadow-md inset-y-0 left-0 z-40 flex h-screen w-60 shrink-0 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:self-start {open
     ? 'translate-x-0'
     : ''}"
 >

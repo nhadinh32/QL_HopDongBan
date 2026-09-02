@@ -7,6 +7,7 @@
   import {
     decodeSelectValues,
     encodeSelectValues,
+    isFilterActive,
     type ColumnFilters,
     type FilterField,
   } from "$lib/utils/contract-filters";
@@ -17,12 +18,13 @@
   export let onClear: () => void;
   export let activeCount: number;
 
-  const cardClass = "w-50 shrink-0 rounded border border-slate-200";
+  const cardClass = "w-40 shrink-0 rounded border border-slate-100 overflow-hidden bg-white shadow-xs";
   const cardHeaderClass =
-    "flex items-center justify-between gap-2 border-b border-slate-200 px-2.5 py-1.5";
-  const cardTitleClass = "truncate text-xs font-semibold text-slate-700";
+    "flex items-center justify-between gap-2 border-b border-primary-100 px-2.5 py-1.5 bg-primary-900";
+  const cardTitleClass = "truncate text-xs font-semibold text-primary-50";
   const cardBodyClass = "p-2";
-  const inputClass = "px-2 py-1.5 text-xs";
+  const inputClass = "text-xs";
+  const clearButtonClass = "shrink-0 !text-[10.5px] font-bold text-primary-300 hover:underline";
 
   function toggleOption(field: string, option: string): void {
     const selected = decodeSelectValues(filters[field]);
@@ -33,27 +35,27 @@
   }
 </script>
 
-<div class="rounded bg-white p-2">
+<div class="">
   <div class="flex items-center justify-between gap-3">
-    <h3 class="text-sm font-semibold text-slate-900">Bộ lọc</h3>
-      <Button variant="ghost" extraClass="text-xs" on:click={onClear}
+    <h3 class="text-sm font-semibold text-primary-900">Bộ lọc</h3>
+      <Button variant="ghost" extraClass="!text-red-500 text-xs !py-0.5" on:click={onClear}
         >Xóa {activeCount} bộ lọc</Button
       >
   </div>
-  <div class="mt-3 flex gap-3 overflow-x-auto pb-1">
+  <div class="mt-1 flex gap-1 overflow-x-auto pb-1">
     {#each filterFields as { field, kind, options } (field)}
       {#if kind === "select"}
         {@const selected = decodeSelectValues(filters[field])}
         <div class={cardClass}>
           <div class={cardHeaderClass}>
             <span class={cardTitleClass} title={field}>{field}</span>
-            {#if selected.length > 0}
+            {#if isFilterActive(field, kind, filters)}
               <button
                 type="button"
-                class="shrink-0 text-[11px] font-medium text-primary-600 hover:underline"
+                class={clearButtonClass}
                 on:click={() => onChange(field, "")}
               >
-                ❌
+                ⨉
               </button>
             {/if}
           </div>
@@ -78,6 +80,18 @@
         <div class={cardClass}>
           <div class={cardHeaderClass}>
             <span class={cardTitleClass} title={field}>{field}</span>
+            {#if isFilterActive(field, kind, filters)}
+              <button
+                type="button"
+                class={clearButtonClass}
+                on:click={() => {
+                  onChange(`${field}::from`, "");
+                  onChange(`${field}::to`, "");
+                }}
+              >
+                ⨉
+              </button>
+            {/if}
           </div>
           <div class="flex flex-col gap-1.5 {cardBodyClass}">
             <input
@@ -98,6 +112,18 @@
         <div class={cardClass}>
           <div class={cardHeaderClass}>
             <span class={cardTitleClass} title={field}>{field}</span>
+            {#if isFilterActive(field, kind, filters)}
+              <button
+                type="button"
+                class={clearButtonClass}
+                on:click={() => {
+                  onChange(`${field}::min`, "");
+                  onChange(`${field}::max`, "");
+                }}
+              >
+                ⨉
+              </button>
+            {/if}
           </div>
           <div class="flex items-center gap-1.5 {cardBodyClass}">
             <input
@@ -123,12 +149,21 @@
         <div class={cardClass}>
           <div class={cardHeaderClass}>
             <span class={cardTitleClass} title={field}>{field}</span>
+            {#if isFilterActive(field, kind, filters)}
+              <button
+                type="button"
+                class={clearButtonClass}
+                on:click={() => onChange(field, "")}
+              >
+                ⨉
+              </button>
+            {/if}
           </div>
           <div class={cardBodyClass}>
             <input
               class={inputClass}
               type="text"
-              placeholder="Tìm theo {field}"
+              placeholder="Nhập để tìm kiếm"
               value={filters[field] ?? ""}
               on:input={(event) => onChange(field, event.currentTarget.value)}
             />

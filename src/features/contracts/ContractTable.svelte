@@ -61,24 +61,16 @@
     <div class="px-5 py-16 text-center text-sm text-slate-500">Chưa có dữ liệu trong bảng này.</div>
   {:else}
     <div class="overflow-auto rounded">
-      <table class="w-full min-w-[1080px] border-collapse text-sm">
+      <table class="w-full min-w-[1500px] border-collapse text-sm">
         <thead>
           <tr>
             {#each fields as field}
               <th
-                class="bg-slate-800 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-300 {fieldConfig.numericFields.has(
-                  field,
-                )
-                  ? 'text-right'
-                  : ''}"
+                class="bg-primary-900 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-primary-50"
               >
                 <button
                   type="button"
-                  class="inline-flex w-full items-center gap-1 text-inherit hover:text-white {fieldConfig.numericFields.has(
-                    field,
-                  )
-                    ? 'justify-end'
-                    : ''}"
+                  class="inline-flex w-full items-center gap-1 text-inherit hover:text-white justify-center"
                   on:click={() => onToggleSort(field)}
                   title="Bấm để chuyển: tăng dần, giảm dần, tắt"
                   >{field}{#each sortFields as item, index}{#if item.field === field}<span
@@ -100,15 +92,19 @@
               on:click={(event) => onRowClick(row, event.currentTarget)}
             >
               {#each fields as field}
+                {@const text = formatValue(row[field], field, fieldConfig)}
                 <td
-                  class="max-w-[270px] border-t border-slate-100 px-4 py-3 align-top {fieldConfig.numericFields.has(
+                  class="border-y border-y-slate-300 px-1 py-1 align-top {fieldConfig.numericFields.has(
                     field,
                   )
                     ? 'text-right tabular-nums'
-                    : ''} {fieldConfig.longTextFields.has(field)
-                    ? 'whitespace-pre-line'
                     : ''} {hasValue(row[field]) ? '' : 'text-slate-400'}"
-                  >{formatValue(row[field], field, fieldConfig)}</td
+                  title={text}
+                  ><div
+                    class="line-clamp-3 {fieldConfig.longTextFields.has(field)
+                      ? 'whitespace-pre-line'
+                      : ''}"
+                  >{text}</div></td
                 >
               {/each}
             </tr>

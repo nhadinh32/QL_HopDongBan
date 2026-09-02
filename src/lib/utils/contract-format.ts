@@ -6,9 +6,10 @@ import type { ContractValue, ModuleFieldConfig } from "$lib/types/contracts";
 export const hasValue = (value: ContractValue): boolean =>
   value !== null && value !== undefined && value !== "";
 
-// Quy ước: cột bắt đầu bằng "Ngay" được coi là kiểu ngày, trừ các ngoại lệ của module.
-export const isDateField = (field: string, fieldConfig: ModuleFieldConfig): boolean =>
-  /^Ngay/.test(field) && !fieldConfig.dateFieldExceptions.has(field);
+function formatDateVN(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("vi-VN");
+}
 
 export function formatValue(
   value: ContractValue,
@@ -20,5 +21,6 @@ export function formatValue(
     return `${Number(value).toLocaleString("vi-VN")} đ`;
   if (fieldConfig.percentFields.has(field))
     return `${(Number(value) * 100).toLocaleString("vi-VN")}%`;
+  if (fieldConfig.dateFields.has(field)) return formatDateVN(String(value));
   return String(value);
 }

@@ -28,7 +28,7 @@ export interface ModuleFieldConfig {
   longTextFields: Set<string>;
   currencyFields: Set<string>;
   percentFields: Set<string>;
-  dateFieldExceptions: Set<string>;
+  dateFields: Set<string>;
   // Cột dùng để tính tổng hiển thị ở thẻ "Giá trị" trên đầu trang; null nếu module không có.
   totalValueField: string | null;
 }

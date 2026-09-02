@@ -13,7 +13,7 @@ export const salesContractsModule: ContractModuleConfig = {
     "NgayTrinhLanDau", "BuocXuLy", "NgayChuyenBuoc", "GiaTriHS",
     "TinhTrangThiCong", "NguoiNhan", "ThongTinChiTiet", "TyLeTamUng", "TamUng",
     "AnhHuongHSKhac", "TinhTrangDTCP", "NgayDuKienPD",
-    "TuyChon1", "TuyChon2", "DanhSachCon", "DuAn", "CongTrinhDTCP",
+    "TuyChon1", "TuyChon2", "DanhSachCon", "DuAn", "CongTrinhDTCP", "BenGiaoThau", "BenNhanThau",
   ],
   defaultSortFields: [
     { field: "SoHopDong", direction: "asc" },
@@ -28,8 +28,8 @@ export const salesContractsModule: ContractModuleConfig = {
     currencyFields: new Set(["GiaTriHS", "TamUng"]),
     // Các trường tỷ lệ được định dạng theo phần trăm.
     percentFields: new Set(["TyLeTamUng"]),
-    // Cột bắt đầu bằng "Ngay" mặc định coi là kiểu ngày, trừ các ngoại lệ ở đây.
-    dateFieldExceptions: new Set(),
+    // Các trường ngày được hiển thị/định dạng theo kiểu ngày (input type="date", dd/mm/yyyy trong bảng).
+    dateFields: new Set(["NgayTrinhLanDau", "NgayChuyenBuoc", "NgayDuKienPD"]),
     totalValueField: "GiaTriHS",
   },
 };

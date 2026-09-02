@@ -1,8 +1,8 @@
 // Tiện ích lọc danh sách hồ sơ theo từng cột, dùng chung cho bảng của mọi module.
-// Mỗi cột được suy ra một "kiểu lọc" từ fieldConfig + dữ liệu thực tế, để bảng lọc tự
-// sinh đúng loại điều khiển (danh sách chọn nhiều kiểu slicer / khoảng ngày / khoảng số /
-// tìm chuỗi) mà không cần khai báo thủ công cho từng module.
-import { hasValue, isDateField } from "./contract-format";
+// Mỗi cột tự suy ra một "kiểu lọc" (FilterKind) từ fieldConfig + dữ liệu thực tế — nhờ vậy
+// panel bộ lọc (ContractFilters.svelte) tự sinh đúng loại điều khiển (slicer nhiều lựa chọn /
+// khoảng ngày / khoảng số / tìm chuỗi) mà không cần khai báo thủ công cho từng cột, từng module.
+import { hasValue } from "./contract-format";
 import type { ContractRecord, ModuleFieldConfig } from "$lib/types/contracts";
 
 export type FilterKind = "date" | "numeric" | "select" | "text";
@@ -13,11 +13,16 @@ export interface FilterField {
   options: string[];
 }
 
-// Cột chữ có tối đa chừng này giá trị khác nhau thì coi là danh mục, hiển thị dạng slicer.
+// Cột chữ có tối đa chừng này giá trị khác nhau thì coi là danh mục (kind "select"),
+// hiển thị dạng slicer; nhiều hơn thì coi là văn bản tự do (kind "text"), lọc bằng tìm chuỗi.
 const SELECT_OPTION_LIMIT = 30;
 
-// Với cột kiểu "select", giá trị lưu trong ColumnFilters là JSON của mảng lựa chọn đã chọn
-// (có thể chọn nhiều, giống Slicer trong Excel) thay vì một chuỗi đơn.
+// Giá trị lọc của một cột là một chuỗi duy nhất, nhưng ý nghĩa khác nhau theo kind:
+// - "select": JSON của mảng các lựa chọn đã bật (cho phép chọn nhiều, xem decode/encodeSelectValues).
+// - "date"/"numeric": KHÔNG lưu trực tiếp ở key `field`, mà tách thành 2 key riêng
+//   `field::from`/`field::to` (ngày) hoặc `field::min`/`field::max` (số) — vì mỗi cột dạng
+//   khoảng cần 2 ô nhập độc lập. Quy ước này lặp lại ở isFilterActive và matchesFilters bên dưới.
+// - "text": chuỗi tìm kiếm nhập trực tiếp, so khớp "chứa" không phân biệt hoa/thường.
 export type ColumnFilters = Record<string, string>;
 
 export function distinctValues(rows: ContractRecord[], field: string): string[] {
@@ -30,15 +35,16 @@ export function distinctValues(rows: ContractRecord[], field: string): string[] 
   );
 }
 
-// Tính trước kiểu lọc + danh sách giá trị (nếu là dạng chọn) cho từng cột đang hiển thị,
-// dựa trên TOÀN BỘ dữ liệu (không phải phần đã lọc) để các lựa chọn không đổi khi đang lọc.
+// Tính trước kiểu lọc (date/numeric/select/text) + danh sách giá trị (nếu là "select") cho
+// từng cột đang hiển thị. Nhận `rows` là TOÀN BỘ dữ liệu (không phải phần đã lọc), để danh
+// sách lựa chọn của slicer không co lại/mất tùy chọn khi người dùng đang lọc bằng cột khác.
 export function computeFilterFields(
   fields: string[],
   rows: ContractRecord[],
   fieldConfig: ModuleFieldConfig,
 ): FilterField[] {
   return fields.map((field) => {
-    if (isDateField(field, fieldConfig)) return { field, kind: "date" as const, options: [] };
+    if (fieldConfig.dateFields.has(field)) return { field, kind: "date" as const, options: [] };
     if (fieldConfig.numericFields.has(field))
       return { field, kind: "numeric" as const, options: [] };
     const options = distinctValues(rows, field);
@@ -62,6 +68,8 @@ export function encodeSelectValues(values: string[]): string {
   return values.length ? JSON.stringify(values) : "";
 }
 
+// Cột có đang bị lọc hay không — dùng để đếm badge "N bộ lọc" và để panel bộ lọc quyết định
+// có hiện nút xóa riêng (⨉) trên từng thẻ hay không (ContractFilters.svelte).
 export function isFilterActive(field: string, kind: FilterKind, filters: ColumnFilters): boolean {
   if (kind === "date") return Boolean(filters[`${field}::from`] || filters[`${field}::to`]);
   if (kind === "numeric") return Boolean(filters[`${field}::min`] || filters[`${field}::max`]);
@@ -69,6 +77,7 @@ export function isFilterActive(field: string, kind: FilterKind, filters: ColumnF
   return Boolean(filters[field]);
 }
 
+// Một dòng dữ liệu có khớp toàn bộ bộ lọc đang áp dụng hay không (AND giữa các cột).
 export function matchesFilters(
   row: ContractRecord,
   filters: ColumnFilters,

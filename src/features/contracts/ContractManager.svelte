@@ -56,8 +56,12 @@
   let formValues: Record<string, string> = {};
   let saveError = "";
   let saving = false;
-  let showFilters = false;
+  let showFilters = true;
   let filters: ColumnFilters = {};
+  // Chỉ ghi bộ lọc vào localStorage SAU khi đã đọc xong ở onMount, tránh việc ghi đè
+  // giá trị rỗng ban đầu lên bộ lọc đã lưu từ trước khi kịp đọc ra.
+  let filtersLoaded = false;
+  const filtersStorageKey = `${module.storageKey}:filters`;
 
   // Chỉ đọc cấu hình từ localStorage ở trình duyệt để tránh lỗi khi build tĩnh.
   onMount(() => {
@@ -67,8 +71,19 @@
         ...config,
         ...(JSON.parse(stored) as Partial<ConnectionConfig>),
       };
+    const storedFilters = localStorage.getItem(filtersStorageKey);
+    if (storedFilters) {
+      try {
+        filters = JSON.parse(storedFilters) as ColumnFilters;
+      } catch {
+        // Bỏ qua dữ liệu lỗi, giữ bộ lọc rỗng.
+      }
+    }
+    filtersLoaded = true;
     if (config.publicKey) loadRows();
   });
+
+  $: if (filtersLoaded) localStorage.setItem(filtersStorageKey, JSON.stringify(filters));
 
   // Các giá trị dẫn xuất tự cập nhật theo dữ liệu và lựa chọn sắp xếp.
   $: totalValue = module.fieldConfig.totalValueField
@@ -77,12 +92,9 @@
         0,
       )
     : 0;
-  $: displayFields = fields.filter((field) =>
-    rows.some((row) => hasValue(row[field])),
-  );
   // Bộ lọc do người dùng chọn/gõ theo từng cột đang hiển thị (id không có ô lọc riêng).
   $: filterFields = computeFilterFields(
-    displayFields.filter((field) => field !== "id"),
+    fields.filter((field) => field !== "id"),
     rows,
     module.fieldConfig,
   );
@@ -277,10 +289,10 @@
       <h2 class="text-2xl font-semibold text-slate-900">{module.label}</h2>
     </div> 
       <div class="flex gap-2">
-        <Button on:click={loadRows}>↻ Làm mới</Button>
         <Button on:click={() => (showFilters = !showFilters)}
-          >⏷ Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Button
+          >{showFilters === true ? "↑" : "↓"} Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Button
         >
+        <Button on:click={loadRows}>↻ Làm mới</Button>
         <Button variant="primary" on:click={openCreate}>＋ Thêm hồ sơ</Button>
       </div>
   </div>
@@ -338,7 +350,7 @@
         </p>
       {/if}
       <ContractTable
-        fields={displayFields}
+        {fields}
         rows={sortedRows}
         {sortFields}
         {loading}

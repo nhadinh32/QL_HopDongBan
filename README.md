@@ -85,7 +85,7 @@ App.svelte
 - `fields` — toàn bộ cột, khởi tạo từ `module.defaultFields`, nhưng sau khi gọi Supabase sẽ được **suy ra lại từ chính dữ liệu trả về** (`Object.keys` của các dòng), để tự thích ứng nếu bảng có thêm/bớt cột mà không cần sửa code (`loadRows()` trong `ContractManager.svelte`).
 - `displayFields` — chỉ những cột trong `fields` mà có ít nhất một dòng có giá trị (ẩn cột luôn rỗng cho gọn bảng).
 
-Việc một cột được coi là số/tiền tệ/phần trăm/văn bản dài hay không nằm ở `fieldConfig` trong file cấu hình module (`sales-contracts.ts`), còn cột **ngày** được suy luận tự động: tên cột bắt đầu bằng `Ngay` thì coi là kiểu ngày, trừ khi nằm trong `dateFieldExceptions` (xem `isDateField` trong `contract-format.ts`).
+Việc một cột được coi là số/tiền tệ/phần trăm/văn bản dài/ngày hay không đều khai báo tường minh ở `fieldConfig` trong file cấu hình module (`sales-contracts.ts`) — cột ngày liệt kê trong `dateFields` (xem `isDateField` trong `contract-format.ts`).
 
 ## Giải thích chi tiết từng phần
 
@@ -124,12 +124,12 @@ File trung tâm định nghĩa các kiểu dùng xuyên suốt:
 - `ContractRecord` — một bản ghi, có `id` bắt buộc, còn lại là index signature `[field: string]: ContractValue` vì cột lấy động từ Supabase.
 - `ConnectionConfig` — `{ url, publicKey, table }`, lưu trong `localStorage`.
 - `SortField`/`SortDirection` — một quy tắc sắp xếp (cột + hướng).
-- `ModuleFieldConfig` — cấu hình định dạng cột của một module: tập hợp tên cột số (`numericFields`), văn bản dài (`longTextFields`), tiền tệ (`currencyFields`), phần trăm (`percentFields`), ngoại lệ của quy ước cột-ngày (`dateFieldExceptions`), và cột dùng để tính tổng (`totalValueField`).
+- `ModuleFieldConfig` — cấu hình định dạng cột của một module: tập hợp tên cột số (`numericFields`), văn bản dài (`longTextFields`), tiền tệ (`currencyFields`), phần trăm (`percentFields`), ngày (`dateFields`), và cột dùng để tính tổng (`totalValueField`).
 - `ContractModuleConfig` — khai báo đầy đủ một module: id, nhãn, `storageKey` (khoá localStorage riêng), URL/tên bảng Supabase mặc định, danh sách cột mặc định, thứ tự sắp xếp mặc định, và `fieldConfig` ở trên.
 
 ### Khai báo module dữ liệu (`lib/constants/modules`)
 
-- **`sales-contracts.ts`** — cấu hình cụ thể cho bảng `db_hopdongban`: liệt kê `defaultFields` (đúng thứ tự cột muốn hiển thị lúc chưa tải được dữ liệu thật), `defaultSortFields` (mặc định sắp theo Số hợp đồng rồi Loại HS), và `fieldConfig` (cột nào là số/tiền tệ/phần trăm/văn bản dài, tổng giá trị lấy từ cột `GiaTriHS`).
+- **`sales-contracts.ts`** — cấu hình cụ thể cho bảng `db_hopdongban`: liệt kê `defaultFields` (đúng thứ tự cột muốn hiển thị lúc chưa tải được dữ liệu thật), `defaultSortFields` (mặc định sắp theo Số hợp đồng rồi Loại HS), và `fieldConfig` (cột nào là số/tiền tệ/phần trăm/văn bản dài/ngày, tổng giá trị lấy từ cột `GiaTriHS`).
 - **`index.ts`** — export mảng `MODULES` để `App.svelte`/`Sidebar` lặp qua sinh menu. **Thêm module mới** (VD: Hợp đồng mua) chỉ cần tạo một file cấu hình tương tự `sales-contracts.ts` rồi thêm vào mảng này — không phải sửa gì trong `App.svelte`, `AppShell` hay `Sidebar`.
 
 ### Tầng gọi dữ liệu (`lib/services/supabase-rest.ts`)
@@ -150,8 +150,7 @@ Toàn bộ phân quyền (ai được đọc/ghi cột nào) do **Row Level Secu
 ### Tiện ích định dạng (`lib/utils/contract-format.ts`)
 
 - `hasValue(value)` — coi `null`/`undefined`/chuỗi rỗng là "không có giá trị" (dùng để ẩn cột toàn rỗng, tô màu ô rỗng, so sánh khi sắp xếp...).
-- `isDateField(field, fieldConfig)` — quy ước cột tên bắt đầu bằng `Ngay` là cột ngày, trừ các ngoại lệ khai báo trong `fieldConfig.dateFieldExceptions`.
-- `formatValue(value, field, fieldConfig)` — hiển thị ô dữ liệu: `—` nếu rỗng, thêm hậu tố `đ` và định dạng số Việt Nam nếu là cột tiền tệ, nhân 100 và thêm `%` nếu là cột phần trăm, còn lại hiển thị nguyên văn.
+- `formatValue(value, field, fieldConfig)` — hiển thị ô dữ liệu: `—` nếu rỗng, thêm hậu tố `đ` và định dạng số Việt Nam nếu là cột tiền tệ, nhân 100 và thêm `%` nếu là cột phần trăm, định dạng `dd/mm/yyyy` kiểu Việt Nam nếu là cột ngày, còn lại hiển thị nguyên văn.
 
 ### Tiện ích bộ lọc (`lib/utils/contract-filters.ts`)
 
