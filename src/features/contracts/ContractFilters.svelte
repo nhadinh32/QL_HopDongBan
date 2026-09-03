@@ -43,12 +43,12 @@
       >
   </div>
   <div class="mt-1 flex gap-1 overflow-x-auto pb-1">
-    {#each filterFields as { field, kind, options } (field)}
+    {#each filterFields as { field, label, kind, options } (field)}
       {#if kind === "select"}
         {@const selected = decodeSelectValues(filters[field])}
         <div class={cardClass}>
           <div class={cardHeaderClass}>
-            <span class={cardTitleClass} title={field}>{field}</span>
+            <span class={cardTitleClass} title={label}>{label}</span>
             {#if isFilterActive(field, kind, filters)}
               <button
                 type="button"
@@ -79,7 +79,7 @@
       {:else if kind === "date"}
         <div class={cardClass}>
           <div class={cardHeaderClass}>
-            <span class={cardTitleClass} title={field}>{field}</span>
+            <span class={cardTitleClass} title={label}>{label}</span>
             {#if isFilterActive(field, kind, filters)}
               <button
                 type="button"
@@ -111,7 +111,7 @@
       {:else if kind === "numeric"}
         <div class={cardClass}>
           <div class={cardHeaderClass}>
-            <span class={cardTitleClass} title={field}>{field}</span>
+            <span class={cardTitleClass} title={label}>{label}</span>
             {#if isFilterActive(field, kind, filters)}
               <button
                 type="button"
@@ -148,7 +148,7 @@
       {:else}
         <div class={cardClass}>
           <div class={cardHeaderClass}>
-            <span class={cardTitleClass} title={field}>{field}</span>
+            <span class={cardTitleClass} title={label}>{label}</span>
             {#if isFilterActive(field, kind, filters)}
               <button
                 type="button"

@@ -12,15 +12,17 @@ function requestHeaders(publicKey: string): HeadersInit {
 }
 
 // Chuẩn hóa lỗi HTTP và phản hồi rỗng của các thao tác DELETE/PATCH.
-async function request(url: string, options: RequestInit): Promise<ContractRecord[]> {
+async function request<T>(url: string, options: RequestInit): Promise<T[]> {
   const response = await fetch(url, options);
   if (!response.ok) throw new Error(await response.text());
   const text = await response.text();
-  return text ? (JSON.parse(text) as ContractRecord[]) : [];
+  return text ? (JSON.parse(text) as T[]) : [];
 }
 
 // Tạo client nhỏ, không phụ thuộc SDK, cho các thao tác CRUD trên một bảng Supabase.
-export function createSupabaseRestClient(config: ConnectionConfig) {
+// Generic <T> để dùng lại được cho cả bảng dữ liệu (ContractRecord, mặc định) lẫn bảng
+// cấu hình cf_field_config (FieldConfigRow, xem field-config-service.ts) — chỉ khác kiểu dòng trả về.
+export function createSupabaseRestClient<T = ContractRecord>(config: ConnectionConfig) {
   const tableUrl = (): string => `${restBase(config.url)}/${encodeURIComponent(config.table)}`;
   const options = (method: string, body?: Record<string, ContractValue>): RequestInit => ({
     method,
@@ -29,10 +31,11 @@ export function createSupabaseRestClient(config: ConnectionConfig) {
   });
 
   return {
-    list: (): Promise<ContractRecord[]> => request(`${tableUrl()}?select=*`, options('GET')),
-    create: (payload: Record<string, ContractValue>): Promise<ContractRecord[]> => request(`${tableUrl()}?select=*`, options('POST', payload)),
-    update: (id: ContractRecord['id'], payload: Record<string, ContractValue>): Promise<ContractRecord[]> => request(`${tableUrl()}?id=eq.${encodeURIComponent(id)}&select=*`, options('PATCH', payload)),
-    remove: (id: ContractRecord['id']): Promise<ContractRecord[]> => request(`${tableUrl()}?id=eq.${encodeURIComponent(id)}`, options('DELETE'))
+    // query: chuỗi filter/order bổ sung nối sau ?select=*, vd. "TableName=eq.x&order=FieldOrderIndex.asc".
+    list: (query?: string): Promise<T[]> => request<T>(`${tableUrl()}?select=*${query ? `&${query}` : ''}`, options('GET')),
+    create: (payload: Record<string, ContractValue>): Promise<T[]> => request<T>(`${tableUrl()}?select=*`, options('POST', payload)),
+    update: (id: string | number, payload: Record<string, ContractValue>): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}&select=*`, options('PATCH', payload)),
+    remove: (id: string | number): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}`, options('DELETE'))
   };
 }
 

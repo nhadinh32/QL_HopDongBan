@@ -35,14 +35,18 @@ src/
 ├── App.svelte                       # Component gốc: sidebar + nội dung module đang chọn
 ├── app.css                          # Import Tailwind + style nền cho label/input/select dùng chung
 ├── lib/
-│   ├── types/contracts.ts           # Toàn bộ kiểu dữ liệu dùng chung (ContractRecord, ModuleFieldConfig...)
+│   ├── types/
+│   │   ├── contracts.ts             # Kiểu dữ liệu chung (ContractRecord, ConnectionConfig, ContractModuleConfig...)
+│   │   └── field-config.ts          # FieldType/FilterType + FieldConfig (shape cột đọc từ cf_field_config)
 │   ├── constants/modules/
-│   │   ├── sales-contracts.ts       # Khai báo module "Hợp đồng bán": bảng, cột, định dạng
+│   │   ├── sales-contracts.ts       # Khai báo module "Hợp đồng bán": kết nối Supabase + sort mặc định
 │   │   └── index.ts                 # Danh sách MODULES hiển thị trong sidebar
-│   ├── services/supabase-rest.ts    # Client REST tối giản gọi Supabase (list/create/update/remove)
+│   ├── services/
+│   │   ├── supabase-rest.ts         # Client REST tối giản gọi Supabase (list/create/update/remove), generic theo bảng
+│   │   └── field-config-service.ts  # Tải cấu hình cột từ cf_field_config theo TableName
 │   ├── utils/
-│   │   ├── contract-format.ts       # Định dạng ô dữ liệu (ngày/tiền tệ/phần trăm) + kiểm tra rỗng
-│   │   └── contract-filters.ts      # Suy luận loại bộ lọc theo cột + hàm khớp lọc
+│   │   ├── contract-format.ts       # Định dạng ô dữ liệu (ngày/giờ/tiền tệ/phần trăm/multi-select) + kiểm tra rỗng
+│   │   └── contract-filters.ts      # Tính FilterField theo FieldConfig + hàm khớp lọc
 │   └── components/
 │       ├── layout/
 │       │   ├── AppShell.svelte      # Khung ngoài cùng: sidebar cố định + vùng nội dung
@@ -51,7 +55,8 @@ src/
 │           ├── Button.svelte        # Nút dùng chung, gom các biến thể màu/kích thước
 │           ├── Modal.svelte         # Khung dialog nền mờ dùng chung
 │           ├── ConfirmDialog.svelte # Hộp thoại xác nhận (dựa trên Modal)
-│           └── Badge.svelte         # Chip trạng thái có chấm màu
+│           ├── Badge.svelte         # Chip trạng thái có chấm màu
+│           └── SelectCombobox.svelte # Combobox chọn 1/nhiều lựa chọn, cho gõ tự do tuỳ `allowCustom`
 └── features/contracts/
     ├── ContractManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
     ├── ContractTable.svelte         # Bảng danh sách hồ sơ, sắp xếp, nút Sửa nổi
@@ -63,7 +68,7 @@ src/
 
 ## Kiến trúc tổng quan
 
-Ứng dụng được thiết kế để **tổng quát cho nhiều "module dữ liệu"** (nhiều bảng Supabase khác nhau, ví dụ Hợp đồng bán, Hợp đồng mua...) mà không phải viết lại UI cho từng module. Cách làm: mọi thứ đặc thù của một bảng (tên bảng, danh sách cột, cột nào là số/tiền tệ/ngày/văn bản dài...) được gom vào **một object cấu hình** (`ContractModuleConfig`), còn UI chỉ đọc cấu hình đó để tự sinh giao diện.
+Ứng dụng được thiết kế để **tổng quát cho nhiều "module dữ liệu"** (nhiều bảng Supabase khác nhau, ví dụ Hợp đồng bán, Hợp đồng mua...) mà không phải viết lại UI cho từng module. Cách làm: `ContractModuleConfig` chỉ còn giữ thông tin **cấp module** (kết nối Supabase, sort mặc định, cột tính tổng) — mọi thứ **theo từng cột** (tên trường, nhãn hiển thị, kiểu nhập liệu, cách lọc, hiển thị mặc định, thứ tự, độ rộng, style) đọc **động** từ bảng Supabase `cf_field_config` (lọc theo `TableName = module.defaultTable`), UI chỉ đọc `FieldConfig[]` trả về để tự sinh giao diện. Thêm/sửa/ẩn một cột chỉ cần sửa dữ liệu trong Supabase, không cần sửa code hay deploy lại.
 
 ```
 App.svelte
@@ -80,12 +85,12 @@ App.svelte
 
 ### Vì sao cột dữ liệu không hard-code trong component?
 
-`ContractManager` giữ hai danh sách cột:
+`ContractManager` giữ hai danh sách cột, cả hai đều dẫn xuất từ `fieldConfigs: FieldConfig[]` (tải từ `cf_field_config` lúc `onMount`, xem `loadFieldConfigs()`):
 
-- `fields` — toàn bộ cột, khởi tạo từ `module.defaultFields`, nhưng sau khi gọi Supabase sẽ được **suy ra lại từ chính dữ liệu trả về** (`Object.keys` của các dòng), để tự thích ứng nếu bảng có thêm/bớt cột mà không cần sửa code (`loadRows()` trong `ContractManager.svelte`).
-- `displayFields` — chỉ những cột trong `fields` mà có ít nhất một dòng có giá trị (ẩn cột luôn rỗng cho gọn bảng).
+- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `FieldOrderIndex`. Dùng cho form nhập liệu (`ContractFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
+- `displayFields` — chỉ những cột có `DefaultDisplayField = true`, dùng cho bảng danh sách (`ContractTable`).
 
-Việc một cột được coi là số/tiền tệ/phần trăm/văn bản dài/ngày hay không đều khai báo tường minh ở `fieldConfig` trong file cấu hình module (`sales-contracts.ts`) — cột ngày liệt kê trong `dateFields` (xem `isDateField` trong `contract-format.ts`).
+Việc một cột thuộc kiểu nào (số/tiền tệ/phần trăm/văn bản dài/ngày/ngày giờ/select...) đọc thẳng từ cột `FieldType` của `cf_field_config` (xem `$lib/types/field-config.ts`), không còn Set tên cột khai báo tay trong file module nữa.
 
 ## Giải thích chi tiết từng phần
 
@@ -124,13 +129,22 @@ File trung tâm định nghĩa các kiểu dùng xuyên suốt:
 - `ContractRecord` — một bản ghi, có `id` bắt buộc, còn lại là index signature `[field: string]: ContractValue` vì cột lấy động từ Supabase.
 - `ConnectionConfig` — `{ url, publicKey, table }`, lưu trong `localStorage`.
 - `SortField`/`SortDirection` — một quy tắc sắp xếp (cột + hướng).
-- `ModuleFieldConfig` — cấu hình định dạng cột của một module: tập hợp tên cột số (`numericFields`), văn bản dài (`longTextFields`), tiền tệ (`currencyFields`), phần trăm (`percentFields`), ngày (`dateFields`), và cột dùng để tính tổng (`totalValueField`).
-- `ContractModuleConfig` — khai báo đầy đủ một module: id, nhãn, `storageKey` (khoá localStorage riêng), URL/tên bảng Supabase mặc định, danh sách cột mặc định, thứ tự sắp xếp mặc định, và `fieldConfig` ở trên.
+- `ContractModuleConfig` — khai báo một module ở **cấp module** (không còn danh sách cột): id, nhãn, `storageKey` (khoá localStorage riêng), URL/tên bảng Supabase mặc định, `defaultSortFields` (sort mặc định), và `totalValueField` (tên cột tính tổng cho thẻ "Giá trị", không có tương đương trong `cf_field_config` vì đây là cấu hình tổng hợp cấp module chứ không lặp lại theo từng field).
+
+### Khai báo cấu hình cột (`lib/types/field-config.ts`)
+
+Kiểu dữ liệu cho hệ thống cấu hình cột **động**, đọc từ bảng Supabase `cf_field_config` — thay thế hoàn toàn `ModuleFieldConfig`/`defaultFields` khai báo cứng trước đây:
+
+- `FieldType` — union 11 giá trị: `Text`, `LongText`, `Numeric`, `Percent`, `SingleSelectWithoutOther`, `SingleSelectWithOther`, `MultiSelectWithoutOther`, `MultiSelectWithOther`, `Date`, `DateTime`, `Currency`.
+- `FilterType` — union 4 giá trị chữ thường (`"date" | "numeric" | "select" | "text"`) — `cf_field_config` lưu PascalCase, `field-config-service.ts` chuyển chữ thường lúc parse.
+- `FieldConfigRow` — raw shape trả về từ PostgREST, khớp đúng tên cột thật của `cf_field_config`.
+- `FieldConfig` — shape runtime đã parse (`field, label, type, defaultDisplay, suggestOptions, filterKind, columnWidth, customStyle, orderIndex`), dùng xuyên suốt UI.
+- Hàm predicate dùng chung: `isNumericType`, `isDateType`, `isMultiSelectType`, `isSelectType`, `allowsCustomValue` (field `...WithOther` cho gõ giá trị tự do ngoài `suggestOptions`, `...WithoutOther` thì không).
 
 ### Khai báo module dữ liệu (`lib/constants/modules`)
 
-- **`sales-contracts.ts`** — cấu hình cụ thể cho bảng `db_hopdongban`: liệt kê `defaultFields` (đúng thứ tự cột muốn hiển thị lúc chưa tải được dữ liệu thật), `defaultSortFields` (mặc định sắp theo Số hợp đồng rồi Loại HS), và `fieldConfig` (cột nào là số/tiền tệ/phần trăm/văn bản dài/ngày, tổng giá trị lấy từ cột `GiaTriHS`).
-- **`index.ts`** — export mảng `MODULES` để `App.svelte`/`Sidebar` lặp qua sinh menu. **Thêm module mới** (VD: Hợp đồng mua) chỉ cần tạo một file cấu hình tương tự `sales-contracts.ts` rồi thêm vào mảng này — không phải sửa gì trong `App.svelte`, `AppShell` hay `Sidebar`.
+- **`sales-contracts.ts`** — cấu hình cụ thể cho bảng `db_hopdongban`: chỉ còn `id`/`label`/`storageKey`/`defaultUrl`/`defaultTable`/`defaultSortFields` (mặc định sắp theo Số hợp đồng rồi Loại HS)/`totalValueField` (`GiaTriHS`). Danh sách cột, nhãn, kiểu nhập liệu... đọc động từ `cf_field_config` (`TableName = "db_hopdongban"`).
+- **`index.ts`** — export mảng `MODULES` để `App.svelte`/`Sidebar` lặp qua sinh menu. **Thêm module mới** (VD: Hợp đồng mua) chỉ cần tạo một file cấu hình tương tự `sales-contracts.ts`, thêm vào mảng này, rồi thêm các dòng field tương ứng vào `cf_field_config` (`TableName` = tên bảng module đó) — không phải sửa gì trong `App.svelte`, `AppShell` hay `Sidebar`.
 
 ### Tầng gọi dữ liệu (`lib/services/supabase-rest.ts`)
 
@@ -139,37 +153,43 @@ Một client REST tối giản, **không phụ thuộc SDK Supabase**, chỉ dù
 - `restBase(url)` — chuẩn hoá URL người dùng nhập (project URL hoặc URL REST đầy đủ) thành dạng `<project>/rest/v1`.
 - `requestHeaders(publicKey)` — header cố định cho mọi request: `apikey`, `Content-Type: application/json`, và `Prefer: return=representation` (yêu cầu Supabase trả lại bản ghi vừa tạo/sửa thay vì rỗng).
 - `request(url, options)` — wrapper `fetch` dùng chung: ném lỗi kèm nội dung response nếu status không `ok`, còn nếu body rỗng (trường hợp DELETE) thì trả về mảng rỗng thay vì lỗi parse JSON.
-- `createSupabaseRestClient(config)` — trả về object có 4 hàm ứng với 4 thao tác CRUD, đều thao tác trên một bảng (`config.table`):
-  - `list()` — `GET ?select=*`.
+- `createSupabaseRestClient<T = ContractRecord>(config)` — trả về object có 4 hàm ứng với 4 thao tác CRUD, đều thao tác trên một bảng (`config.table`), generic theo kiểu dòng trả về để dùng lại được cho cả bảng dữ liệu lẫn `cf_field_config` (xem `field-config-service.ts`):
+  - `list(query?)` — `GET ?select=*`, nối thêm `query` (filter/order, vd. `"TableName=eq.x&order=FieldOrderIndex.asc"`) nếu có.
   - `create(payload)` — `POST` kèm `?select=*` để lấy lại bản ghi (và `id`) vừa tạo.
   - `update(id, payload)` — `PATCH ?id=eq.<id>&select=*`.
   - `remove(id)` — `DELETE ?id=eq.<id>`.
 
 Toàn bộ phân quyền (ai được đọc/ghi cột nào) do **Row Level Security** phía Supabase quyết định; public key chỉ định danh app, không phải cấp quyền.
 
+### Tầng cấu hình cột (`lib/services/field-config-service.ts`)
+
+- `loadFieldConfig(config, tableName)` — gọi `createSupabaseRestClient<FieldConfigRow>({ ...config, table: "cf_field_config" })`, lọc theo `TableName=eq.<tableName>&order=FieldOrderIndex.asc`, rồi map từng `FieldConfigRow` (PascalCase, đúng tên cột Supabase) sang `FieldConfig` (camelCase, dùng trong UI): `SuggestForSelect` (Postgres `text[]`, có thể `null`) → `suggestOptions: string[]` (mặc định `[]`), `FilterType` → `filterKind` chuyển chữ thường, `DefaultFieldColumnWidth`/`CustomStyleForColumn` → `columnWidth`/`customStyle` (giữ `null` nếu trống), `Label` rỗng thì dùng tạm `FieldName`.
+- Dùng chung `ConnectionConfig` (URL/key) đã cấu hình sẵn cho module — `cf_field_config` nằm cùng project Supabase, chỉ khác tên bảng.
+
 ### Tiện ích định dạng (`lib/utils/contract-format.ts`)
 
 - `hasValue(value)` — coi `null`/`undefined`/chuỗi rỗng là "không có giá trị" (dùng để ẩn cột toàn rỗng, tô màu ô rỗng, so sánh khi sắp xếp...).
-- `formatValue(value, field, fieldConfig)` — hiển thị ô dữ liệu: `—` nếu rỗng, thêm hậu tố `đ` và định dạng số Việt Nam nếu là cột tiền tệ, nhân 100 và thêm `%` nếu là cột phần trăm, định dạng `dd/mm/yyyy` kiểu Việt Nam nếu là cột ngày, còn lại hiển thị nguyên văn.
+- `formatValue(value, config: FieldConfig)` — hiển thị ô dữ liệu theo `config.type`: `—` nếu rỗng, thêm hậu tố `đ` và định dạng số Việt Nam nếu `Currency`, nhân 100 và thêm `%` nếu `Percent`, định dạng `dd/mm/yyyy` nếu `Date`, thêm giờ `HH:mm` nếu `DateTime`, nối lại bằng `", "` nếu là `MultiSelect...` (giá trị lưu trong Supabase dạng chuỗi nối `;`), còn lại hiển thị nguyên văn.
 
 ### Tiện ích bộ lọc (`lib/utils/contract-filters.ts`)
 
-Đây là phần logic phức tạp nhất, phục vụ panel bộ lọc ở tab Danh sách. Ý tưởng: **mỗi cột tự suy ra một "kiểu lọc" (`FilterKind`)** dựa trên `fieldConfig` + dữ liệu thực tế, để UI tự sinh đúng loại điều khiển mà không cần khai báo tay cho từng cột:
+Phục vụ panel bộ lọc ở tab Danh sách. **Kiểu lọc (`FilterType`) đọc thẳng từ `filterKind` của `FieldConfig`** (cột `FilterType` trong `cf_field_config`) — không còn tự suy luận từ dữ liệu (không còn giới hạn "≤ 30 giá trị khác nhau mới coi là select" như trước):
 
-| Điều kiện | `FilterKind` | Điều khiển trong `ContractFilters.svelte` |
-| --- | --- | --- |
-| Cột được `isDateField` nhận là ngày | `"date"` | Hai ô `<input type="date">` (từ/đến) |
-| Cột nằm trong `fieldConfig.numericFields` | `"numeric"` | Hai ô `<input type="number">` (từ/đến) |
-| Cột chữ có ≤ 30 giá trị khác nhau trong dữ liệu | `"select"` | Danh sách cuộn dọc kiểu Slicer Excel, chọn được nhiều giá trị |
-| Còn lại | `"text"` | Ô nhập tìm theo chuỗi con, không phân biệt hoa/thường |
+| `filterKind` | Điều khiển trong `ContractFilters.svelte` |
+| --- | --- |
+| `"date"` | Hai ô `<input type="date">` (từ/đến) |
+| `"numeric"` | Hai ô `<input type="number">` (từ/đến) |
+| `"select"` | Danh sách cuộn dọc kiểu Slicer Excel, chọn được nhiều giá trị |
+| `"text"` | Ô nhập tìm theo chuỗi con, không phân biệt hoa/thường |
 
 Chi tiết từng hàm:
 
-- `distinctValues(rows, field)` — liệt kê các giá trị khác nhau (không rỗng) của một cột, sắp xếp theo `localeCompare` tiếng Việt.
-- `computeFilterFields(fields, rows, fieldConfig)` — tính trước `{ field, kind, options }` cho từng cột **dựa trên toàn bộ `rows` chưa lọc** (không phải phần đã lọc), để danh sách lựa chọn của slicer không bị co lại khi người dùng đang lọc dở.
+- `splitCellValues(value)` — tách một ô theo dấu `;` (cùng quy ước lưu multi-select trong dữ liệu và `SuggestForSelect`); với field single-select (không có `;`) vẫn chỉ ra đúng 1 phần tử nên áp dụng chung được cho mọi field kind `"select"`.
+- `distinctValues(rows, field)` — liệt kê các giá trị khác nhau (không rỗng, đã tách theo `;`) của một cột, sắp xếp theo `localeCompare` tiếng Việt.
+- `computeFilterFields(fieldConfigs, rows)` — tính trước `{ field, label, kind, options }` cho từng cột từ `FieldConfig[]`, **dựa trên toàn bộ `rows` chưa lọc** (không phải phần đã lọc), để danh sách lựa chọn của slicer không bị co lại khi người dùng đang lọc dở. Với kind `"select"`, `options` = `suggestOptions` (giữ nguyên thứ tự đã cấu hình — nhiều field dùng thứ tự có ý nghĩa như quy trình xử lý, không phải bảng chữ cái) nối thêm giá trị thực tế trong dữ liệu nhưng chưa có trong `suggestOptions`.
 - `encodeSelectValues`/`decodeSelectValues` — vì một cột `"select"` có thể chọn **nhiều** giá trị cùng lúc, giá trị lọc lưu dưới dạng chuỗi JSON của mảng (thay vì một chuỗi đơn như các kiểu lọc khác) trong cùng một object `ColumnFilters: Record<string, string>`.
 - `isFilterActive`/`countActiveFilters` — xác định một cột có đang được lọc hay không (khác nhau theo kiểu: date/numeric xét cặp khoá `field::from`/`field::to` hoặc `field::min`/`field::max`; select xét mảng đã giải mã có phần tử hay không), rồi đếm số **cột** đang lọc để hiện lên nút "Bộ lọc (N)".
-- `matchesFilters(row, filters, filterFields)` — hàm khớp lọc chính, `filterFields.every(...)`: một dòng phải thoả **tất cả** cột đang lọc mới được giữ lại (kết hợp AND giữa các cột; trong một cột select thì các giá trị đã chọn kết hợp OR — chọn nhiều nghĩa là khớp một trong số đó, giống Slicer Excel).
+- `matchesFilters(row, filters, filterFields)` — hàm khớp lọc chính, `filterFields.every(...)`: một dòng phải thoả **tất cả** cột đang lọc mới được giữ lại (kết hợp AND giữa các cột; trong một cột select thì các giá trị đã chọn kết hợp OR với các phần tử đã tách `;` trong ô — chọn nhiều nghĩa là khớp một trong số đó, giống Slicer Excel, và đúng cho cả field multi-select).
 
 ### `features/contracts/ContractManager.svelte` — nơi giữ state và logic
 
@@ -223,6 +243,18 @@ Form nhập URL Supabase, public key (ô `type="password"` để tránh lộ khi
 ### Triển khai GitHub Pages
 
 Đường dẫn build hiện được đặt cứng theo repository `QL_HopDongBan` (`/QL_HopDongBan/`). Nếu đổi tên repository hoặc dùng custom domain, cập nhật biến `BASE_PATH` tương ứng (đặt thành `/` khi dùng custom domain) rồi build lại — thư mục `docs/` sinh ra chính là nội dung deploy lên GitHub Pages (cấu hình Pages trỏ vào thư mục `docs` trên nhánh `main`).
+
+## Hệ thống cấu hình cột theo dữ liệu (`cf_field_config`) — đang triển khai
+
+> Xem kế hoạch đầy đủ tại [`.claude/plans/field-config-plan.md`](.claude/plans/field-config-plan.md). Mục này chỉ ghi lại 3 bảng Supabase đã tạo sẵn để tra cứu; code trong repo **chưa** được cập nhật theo hệ thống này.
+
+Ba bảng mới trên Supabase, sẽ thay thế `ModuleFieldConfig`/`defaultFields` khai báo cứng trong TypeScript:
+
+- **`cf_field_config`** — một dòng cho mỗi cột của một bảng module (cột `TableName` xác định thuộc bảng nào), gồm: `FieldOrderIndex`, `FieldName`, `Label`, `DefaultDisplayField`, `FieldType`, `FilterType`, `DefaultFieldColumnWidth`, `CustomStyleForColumn` (CSS inline thuần, vd. `"background-color:#dcfce7; font-weight:bold"` — áp trực tiếp qua `style`, không phải class Tailwind), `SuggestForSelect` (mảng Postgres `text[]`).
+- **`cf_field_type`** — danh mục 11 giá trị hợp lệ của cột `FieldType`: `Text`, `LongText`, `Numeric`, `Percent`, `SingleSelectWithoutOther`, `SingleSelectWithOther`, `MultiSelectWithoutOther`, `MultiSelectWithOther`, `Date`, `DateTime`, `Currency`.
+- **`cf_filter_type`** — danh mục 4 giá trị hợp lệ của cột `FilterType`: `Date`, `Numeric`, `Select`, `Text`.
+
+`cf_field_type`/`cf_filter_type` chỉ dùng làm ràng buộc khoá ngoại phía Supabase (chống nhập sai chính tả) — app không truy vấn tới 2 bảng này, vì các union type tương ứng đã khai báo sẵn phía TypeScript.
 
 ## Cách thêm một module dữ liệu mới
 

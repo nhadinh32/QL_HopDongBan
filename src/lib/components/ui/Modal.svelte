@@ -12,7 +12,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-30 flex items-center justify-center bg-primary-900/96 p-5"
+  class="fixed inset-0 z-30 flex items-center justify-center bg-primary-900/80 p-5"
   role="presentation"
   on:click|self={onClose}
 >

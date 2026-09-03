@@ -1,6 +1,7 @@
 <script lang="ts">
   // Bảng danh sách hồ sơ: sắp xếp nhiều cột, các trạng thái rỗng/tải/lỗi.
-  // Tổng quát cho mọi module dữ liệu — nhận fieldConfig (cột số/cột dài) qua prop thay vì hard-code.
+  // Tổng quát cho mọi module dữ liệu — nhận FieldConfig[] (đọc từ cf_field_config) qua prop
+  // thay vì hard-code Set cột số/cột dài.
   //
   // Nút "Sửa" không phải là một cột trong bảng: nó là MỘT nút nổi (position: absolute) duy nhất.
   // Nút này đặt NGOÀI khung cuộn ngang (div overflow-auto) — nếu đặt bên trong, nút sẽ bị cuộn
@@ -10,14 +11,14 @@
   // offsetTop không bị ảnh hưởng bởi cuộn ngang nên vẫn đúng dù đặt ngoài khung cuộn.
   import { formatValue, hasValue } from "$lib/utils/contract-format";
   import Button from "$lib/components/ui/Button.svelte";
-  import type { ContractRecord, ModuleFieldConfig, SortField } from "$lib/types/contracts";
+  import type { ContractRecord, SortField } from "$lib/types/contracts";
+  import { isNumericType, type FieldConfig } from "$lib/types/field-config";
 
-  export let fields: string[];
+  export let fields: FieldConfig[];
   export let rows: ContractRecord[];
   export let sortFields: SortField[];
   export let loading: boolean;
   export let hasConnection: boolean;
-  export let fieldConfig: ModuleFieldConfig;
   export let onToggleSort: (field: string) => void;
   export let onEdit: (row: ContractRecord) => void;
 
@@ -48,6 +49,14 @@
     pinnedRow = row;
     focusRow(row, el);
   }
+
+  // Độ rộng cột (px) — áp cho cả <th> lẫn <td> để cột đồng bộ chiều rộng. `columnWidth = null`
+  // giữ hành vi hiện tại (tự co giãn theo nội dung).
+  function widthStyle(field: FieldConfig): string {
+    return field.columnWidth != null
+      ? `width:${field.columnWidth}px; min-width:${field.columnWidth}px`
+      : "";
+  }
 </script>
 
 <div class="relative rounded bg-white" role="presentation" on:mouseleave={onContainerLeave}>
@@ -64,16 +73,17 @@
       <table class="w-full min-w-[1500px] border-collapse text-sm">
         <thead>
           <tr>
-            {#each fields as field}
+            {#each fields as field (field.field)}
               <th
-                class="bg-primary-900 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-primary-50"
+                style={widthStyle(field)}
+                class="bg-primary-900 border-x border-slate-700 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-primary-50"
               >
                 <button
                   type="button"
                   class="inline-flex w-full items-center gap-1 text-inherit hover:text-white justify-center"
-                  on:click={() => onToggleSort(field)}
+                  on:click={() => onToggleSort(field.field)}
                   title="Bấm để chuyển: tăng dần, giảm dần, tắt"
-                  >{field}{#each sortFields as item, index}{#if item.field === field}<span
+                  >{field.label}{#each sortFields as item, index}{#if item.field === field.field}<span
                         class="text-primary-300"
                         >{item.direction === "asc"
                           ? "↑"
@@ -91,19 +101,19 @@
               on:mouseenter={(event) => onRowEnter(row, event.currentTarget)}
               on:click={(event) => onRowClick(row, event.currentTarget)}
             >
-              {#each fields as field}
-                {@const text = formatValue(row[field], field, fieldConfig)}
+              {#each fields as field (field.field)}
+                {@const text = formatValue(row[field.field], field)}
                 <td
-                  class="border-y border-y-slate-300 px-1 py-1 align-top {fieldConfig.numericFields.has(
-                    field,
+                  style={widthStyle(field)}
+                  class="border-y border-y-slate-300 px-1 py-1 align-top {isNumericType(
+                    field.type,
                   )
                     ? 'text-right tabular-nums'
-                    : ''} {hasValue(row[field]) ? '' : 'text-slate-400'}"
+                    : ''} {hasValue(row[field.field]) ? '' : 'text-slate-400'}"
                   title={text}
                   ><div
-                    class="line-clamp-3 {fieldConfig.longTextFields.has(field)
-                      ? 'whitespace-pre-line'
-                      : ''}"
+                    style={field.customStyle ?? ""}
+                    class="line-clamp-3 {field.type === 'LongText' ? 'whitespace-pre-line' : ''}"
                   >{text}</div></td
                 >
               {/each}

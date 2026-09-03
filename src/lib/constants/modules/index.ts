@@ -3,5 +3,6 @@ import { salesContractsModule } from "./sales-contracts";
 
 // Danh sách các module dữ liệu hiển thị trong sidebar, mỗi module ứng với một bảng Supabase.
 // Để thêm module mới (VD: Hợp đồng mua), tạo một file cấu hình tương tự sales-contracts.ts
-// (bảng, danh sách cột mặc định, cột số/cột dài/cột tiền tệ...) rồi thêm vào mảng dưới đây.
+// (id/label/storageKey/URL/tên bảng/sort mặc định), thêm vào mảng dưới đây, rồi thêm các
+// dòng field tương ứng vào bảng cf_field_config (TableName = tên bảng module đó).
 export const MODULES: ContractModuleConfig[] = [salesContractsModule];

@@ -5,6 +5,7 @@
   // ngoài, mỗi mục sidebar mount một ContractManager riêng với module tương ứng.
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
+  import { loadFieldConfig } from "$lib/services/field-config-service";
   import { hasValue } from "$lib/utils/contract-format";
   import {
     computeFilterFields,
@@ -12,6 +13,7 @@
     matchesFilters,
     type ColumnFilters,
   } from "$lib/utils/contract-filters";
+  import { isNumericType, type FieldConfig } from "$lib/types/field-config";
   import type {
     ConnectionConfig,
     ContractModuleConfig,
@@ -41,7 +43,10 @@
   ];
   let activeTab: "overview" | "list" | "settings" = "list";
   let rows: ContractRecord[] = [];
-  let fields: string[] = module.defaultFields;
+  // Cấu hình cột đọc động từ cf_field_config (TableName = module.defaultTable) — nguồn duy
+  // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
+  let fieldConfigs: FieldConfig[] = [];
+  let fieldConfigLoading = false;
   let sortFields: SortField[] = module.defaultSortFields;
   let config: ConnectionConfig = {
     url: module.defaultUrl,
@@ -80,23 +85,31 @@
       }
     }
     filtersLoaded = true;
-    if (config.publicKey) loadRows();
+    if (config.publicKey) {
+      loadFieldConfigs();
+      loadRows();
+    }
   });
 
   $: if (filtersLoaded) localStorage.setItem(filtersStorageKey, JSON.stringify(filters));
 
+  // Tra cứu nhanh FieldConfig theo tên field, dùng ở compareValue/saveRecord thay cho
+  // 5 Set<string> trước đây.
+  $: fieldConfigMap = Object.fromEntries(fieldConfigs.map((field) => [field.field, field]));
+  // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true); form nhập liệu
+  // vẫn luôn dùng toàn bộ fieldConfigs (trừ id) để không "giấu mất" field nào lúc sửa.
+  $: displayFields = fieldConfigs.filter((field) => field.defaultDisplay);
+
   // Các giá trị dẫn xuất tự cập nhật theo dữ liệu và lựa chọn sắp xếp.
-  $: totalValue = module.fieldConfig.totalValueField
-    ? rows.reduce(
-        (sum, row) => sum + (Number(row[module.fieldConfig.totalValueField!]) || 0),
-        0,
-      )
+  $: totalValue = module.totalValueField
+    ? rows.reduce((sum, row) => sum + (Number(row[module.totalValueField!]) || 0), 0)
     : 0;
-  // Bộ lọc do người dùng chọn/gõ theo từng cột đang hiển thị (id không có ô lọc riêng).
+  // Bộ lọc do người dùng chọn/gõ theo từng cột đang có cấu hình (id không có ô lọc riêng,
+  // field có filterKind "none" — cấu hình FilterType = "None" trong cf_field_config — cũng vậy).
   $: filterFields = computeFilterFields(
-    fields.filter((field) => field !== "id"),
+    fieldConfigs.filter((field) => field.field !== "id" && field.filterKind !== "none"),
     rows,
-    module.fieldConfig,
+    filters,
   );
   $: activeFilterCount = countActiveFilters(filters, filterFields);
   $: filteredRows = rows.filter((row) => matchesFilters(row, filters, filterFields));
@@ -119,7 +132,8 @@
     if (!hasValue(left) && !hasValue(right)) return 0;
     if (!hasValue(left)) return 1;
     if (!hasValue(right)) return -1;
-    return module.fieldConfig.numericFields.has(field)
+    const type = fieldConfigMap[field]?.type;
+    return type && isNumericType(type)
       ? Number(left) - Number(right)
       : String(left).localeCompare(String(right), "vi", {
           sensitivity: "base",
@@ -145,6 +159,20 @@
     });
   }
 
+  // Tải cấu hình cột từ cf_field_config (TableName = module.defaultTable, xem
+  // field-config-service.ts) — độc lập với loadRows(), gọi song song lúc kết nối sẵn sàng.
+  async function loadFieldConfigs() {
+    fieldConfigLoading = true;
+    try {
+      fieldConfigs = await loadFieldConfig(config, module.defaultTable);
+    } catch (error) {
+      notice = `Không tải được cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
+      fieldConfigs = [];
+    } finally {
+      fieldConfigLoading = false;
+    }
+  }
+
   // Tải toàn bộ bản ghi qua Supabase REST bằng cấu hình người dùng đã lưu.
   async function loadRows() {
     notice = "";
@@ -153,7 +181,6 @@
     try {
       const data = await createSupabaseRestClient(config).list();
       rows = Array.isArray(data) ? data : [];
-      if (rows.length) fields = [...new Set(rows.flatMap(Object.keys))];
     } catch (error) {
       notice = `Supabase trả về lỗi: ${error instanceof Error ? error.message : String(error)}`;
       rows = [];
@@ -168,6 +195,7 @@
     localStorage.setItem(module.storageKey, JSON.stringify(config));
     savedText = "Đã lưu trên trình duyệt này";
     activeTab = "list";
+    loadFieldConfigs();
     loadRows();
   }
 
@@ -219,15 +247,15 @@
     saving = true;
     saveError = "";
     const payload: Record<string, ContractValue> = Object.fromEntries(
-      fields
-        .filter((field) => field !== "id" || !editRecord)
+      fieldConfigs
+        .filter((field) => field.field !== "id" || !editRecord)
         .map((field) => {
-          const value = formValues[field];
+          const value = formValues[field.field];
           return [
-            field,
+            field.field,
             value === "" || value === undefined
               ? null
-              : module.fieldConfig.numericFields.has(field)
+              : isNumericType(field.type)
                 ? Number(value)
                 : value,
           ];
@@ -287,13 +315,17 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h2 class="text-2xl font-semibold text-slate-900">{module.label}</h2>
-    </div> 
+    </div>
       <div class="flex gap-2">
         <Button on:click={() => (showFilters = !showFilters)}
           >{showFilters === true ? "↑" : "↓"} Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Button
         >
         <Button on:click={loadRows}>↻ Làm mới</Button>
-        <Button variant="primary" on:click={openCreate}>＋ Thêm hồ sơ</Button>
+        <Button
+          variant="primary"
+          disabled={fieldConfigLoading || !fieldConfigs.length}
+          on:click={openCreate}>＋ Thêm hồ sơ</Button
+        >
       </div>
   </div>
 
@@ -350,12 +382,11 @@
         </p>
       {/if}
       <ContractTable
-        {fields}
+        fields={displayFields}
         rows={sortedRows}
         {sortFields}
-        {loading}
+        loading={loading || fieldConfigLoading}
         hasConnection={Boolean(config.publicKey)}
-        fieldConfig={module.fieldConfig}
         onToggleSort={toggleSort}
         onEdit={openEdit}
       />
@@ -369,12 +400,11 @@
 
 {#if editRecord !== undefined}
   <ContractFormModal
-    {fields}
+    fields={fieldConfigs}
     {editRecord}
     {formValues}
     {saveError}
     {saving}
-    fieldConfig={module.fieldConfig}
     onClose={closeEdit}
     onSubmit={saveRecord}
     onDelete={() => requestDelete(editRecord)}
