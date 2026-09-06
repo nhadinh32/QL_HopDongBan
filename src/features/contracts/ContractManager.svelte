@@ -6,7 +6,6 @@
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
   import { loadFieldConfig } from "$lib/services/field-config-service";
-  import { hasValue } from "$lib/utils/contract-format";
   import {
     computeFilterFields,
     countActiveFilters,
@@ -60,6 +59,9 @@
   let savedText = "";
   let editRecord: ContractRecord | null | undefined = undefined;
   let deleteRecord: ContractRecord | null = null;
+  // Dòng đang chọn trong bảng danh sách (bấm 1 dòng để chọn/bỏ chọn) — nút "Sửa" trên thanh
+  // công cụ thao tác lên dòng này thay vì có nút sửa nổi riêng theo từng dòng.
+  let selectedRow: ContractRecord | null = null;
   let formValues: Record<string, string> = {};
   let saveError = "";
   let saving = false;
@@ -152,6 +154,7 @@
   // Tải toàn bộ bản ghi qua Supabase REST bằng cấu hình người dùng đã lưu.
   async function loadRows() {
     notice = "";
+    selectedRow = null;
     if (!config.url || !config.publicKey) return;
     loading = true;
     try {
@@ -287,37 +290,53 @@
 
 <svelte:head><title>{module.label}</title></svelte:head>
 
-<section>
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h2 class="text-2xl font-semibold text-slate-900">{module.label}</h2>
-    </div>
-      <div class="flex gap-2">
-        <Button on:click={() => (showFilters = !showFilters)}
-          >{showFilters === true ? "↑" : "↓"} Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Button
-        >
+<section class="flex h-full min-h-0 flex-col overflow-hidden">
+  <div class="mt-2 mx-2 flex flex-wrap items-start justify-end gap-1">
         <Button on:click={loadRows}>↻ Làm mới</Button>
+        <Button disabled={!selectedRow} on:click={() => selectedRow && openEdit(selectedRow)}
+          >✎ Sửa</Button
+        >
         <Button
           variant="primary"
           disabled={fieldConfigLoading || !fieldConfigs.length}
           on:click={openCreate}>＋ Thêm hồ sơ</Button
         >
-      </div>
   </div>
 
-  <div class="mt-4 border-b border-slate-200">
-    <nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="Chuyển tab">
+  <div class="mt-2 px-2 border-b-1 border-slate-300 shadow-md z-38">
+    <nav class="-mb-px flex items-center overflow-x-auto" aria-label="Chuyển tab">
       {#each tabs as tab}
-        <button
-          type="button"
-          class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab ===
-          tab.id
-            ? 'border-primary-600 text-primary-700'
-            : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'}"
-          on:click={() => (activeTab = tab.id)}
-        >
-          {tab.label}
-        </button>
+        <div class="flex items-center gap-1 whitespace-nowrap px-2 py-2 rounded-t text-sm font-medium transition-colors
+            {activeTab === tab.id ? 'border-b-2 border-primary-500 bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-primary-700'}">
+          <button
+            type="button"
+            class=""
+            on:click={() => (activeTab = tab.id)}
+          >
+            {tab.label}
+          </button>
+          {#if tab.id === "list"}
+            <Button
+              ariaLabel="Bộ lọc"
+              title="Bộ lọc"
+              variant="ghost"
+              extraClass="!m-0 !p-0 !px-1 hover:!bg-primary-100"
+              on:click={() => (showFilters = !showFilters)}
+            >
+              <svg
+                class="h-4 w-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 5h16l-6 8v6l-4 2v-8z" />
+              </svg>
+            </Button>
+          {/if}
+        </div>
       {/each}
     </nav>
   </div>
@@ -336,7 +355,7 @@
       <StatCards totalRows={rows.length} {statusLabel} />
     </div>
   {:else if activeTab === "list"}
-    <div class="mt-2 space-y-3">
+    <div class="flex h-0 min-h-0 flex-1 flex-col">
       {#if showFilters}
         <ContractFilters
           {filterFields}
@@ -346,13 +365,6 @@
           onClear={clearFilters}
         />
       {/if}
-      {#if activeFilterCount > 0}
-        <p class="text-xs text-slate-500">
-          Hiển thị {sortedRows.length.toLocaleString("vi-VN")}/{rows.length.toLocaleString(
-            "vi-VN",
-          )} hồ sơ khớp bộ lọc.
-        </p>
-      {/if}
       <ContractTable
         fields={displayFields}
         rows={sortedRows}
@@ -361,7 +373,8 @@
         loading={loading || fieldConfigLoading}
         hasConnection={Boolean(config.publicKey)}
         onToggleSort={toggleSort}
-        onEdit={openEdit}
+        {selectedRow}
+        onSelectRow={(row) => (selectedRow = selectedRow === row ? null : row)}
       />
     </div>
   {:else}

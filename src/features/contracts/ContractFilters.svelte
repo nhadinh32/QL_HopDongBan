@@ -35,7 +35,7 @@
   }
 </script>
 
-<div class="">
+<div class="mt-2 mx-2">
   <div class="flex items-center justify-between gap-3">
     <h3 class="text-sm font-semibold text-primary-900">Bộ lọc</h3>
       <Button variant="ghost" extraClass="!text-red-500 text-xs !py-0.5" on:click={onClear}

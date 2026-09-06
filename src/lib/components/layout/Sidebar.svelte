@@ -12,25 +12,26 @@
   export let onClose: () => void = () => {};
 </script>
 
-{#if open}
-  <div
-    class="fixed inset-0 z-30 bg-slate-900/50 md:hidden"
+<div
+    class="fixed inset-0 z-39 bg-slate-900/50 md:hidden transition-opacity duration-500 {open
+      ? 'opacity-100 pointer-events-auto'
+      : 'opacity-0 pointer-events-none'}"
     role="presentation"
     on:click={onClose}
-  ></div>
-{/if}
+></div>
+
 
 <aside
-  class="fixed shadow-2xl inset-y-0 left-0 z-40 flex h-screen w-60 shrink-0 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:sticky md:top-0 md:z-10 md:translate-x-0 md:self-start {open
+  class="fixed shadow-xl inset-y-0 left-0 z-40 flex h-dvh md:w-55 w-70 shrink-0 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-500 md:sticky md:top-0 md:z-10 md:translate-x-0 md:self-start {open
     ? 'translate-x-0'
     : ''}"
 >
-  <div class="flex items-center gap-2.5 px-5 py-5">
+  <div class="flex items-center gap-1 px-2 py-2">
     <div class="grid h-8 w-8 shrink-0 place-items-center rounded bg-primary-600 text-sm font-bold text-white">
       HD
     </div>
     <div class="min-w-0 flex-1">
-      <p class="truncate text-sm font-semibold leading-none text-slate-900">Hợp đồng bán</p>
+      <p class="truncate text-sm font-semibold leading-none text-slate-900">KHÔNG GIAN LÀM VIỆC</p>
       <p class="mt-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
         Workspace
       </p>

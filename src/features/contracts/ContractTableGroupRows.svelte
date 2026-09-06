@@ -12,9 +12,8 @@
   export let fields: FieldConfig[];
   export let collapsedKeys: Set<string>;
   export let onToggleCollapse: (key: string) => void;
-  export let shownRow: ContractRecord | null;
-  export let onRowEnter: (row: ContractRecord, el: HTMLTableRowElement) => void;
-  export let onRowClick: (row: ContractRecord, el: HTMLTableRowElement) => void;
+  export let selectedRow: ContractRecord | null;
+  export let onRowClick: (row: ContractRecord) => void;
   export let showCollapseColumn = false;
   // Chỉ dùng để chọn màu theo cấp nhóm (không dùng để thụt lề). Phải liệt kê đủ 4 chuỗi class
   // dạng literal (không ghép chuỗi runtime kiểu `bg-primary-${n}`) vì Tailwind chỉ sinh CSS cho
@@ -68,17 +67,16 @@
         {showCollapseColumn}
         {collapsedKeys}
         {onToggleCollapse}
-        {shownRow}
-        {onRowEnter}
+        {selectedRow}
         {onRowClick}
       />
     {/if}
   {:else}
     {#each node.rows as row (row.id)}
       <tr
-        class:bg-slate-50={shownRow === row}
-        on:mouseenter={(event) => onRowEnter(row, event.currentTarget)}
-        on:click={(event) => onRowClick(row, event.currentTarget)}
+        class="cursor-pointer"
+        class:bg-slate-50={selectedRow === row}
+        on:click={() => onRowClick(row)}
       >
         {#if showCollapseColumn}
           <td class={cellBorder}></td>
