@@ -31,7 +31,7 @@ export function createSupabaseRestClient<T = ContractRecord>(config: ConnectionC
   });
 
   return {
-    // query: chuỗi filter/order bổ sung nối sau ?select=*, vd. "TableName=eq.x&order=FieldOrderIndex.asc".
+    // query: chuỗi filter/order bổ sung nối sau ?select=*, vd. "TableName=eq.x&order=DefaultFieldOrderIndex.asc".
     list: (query?: string): Promise<T[]> => request<T>(`${tableUrl()}?select=*${query ? `&${query}` : ''}`, options('GET')),
     create: (payload: Record<string, ContractValue>): Promise<T[]> => request<T>(`${tableUrl()}?select=*`, options('POST', payload)),
     update: (id: string | number, payload: Record<string, ContractValue>): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}&select=*`, options('PATCH', payload)),

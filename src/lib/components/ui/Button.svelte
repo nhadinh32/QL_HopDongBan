@@ -4,6 +4,7 @@
   export let type: "button" | "submit" = "button";
   export let disabled = false;
   export let ariaLabel: string | undefined = undefined;
+  export let title: string | undefined = undefined;
   export let extraClass = "";
 
   const base =
@@ -21,6 +22,6 @@
   $: classes = `${base} ${sizing} ${styles[variant]} ${extraClass}`;
 </script>
 
-<button {type} class={classes} {disabled} aria-label={ariaLabel} on:click>
+<button {type} class={classes} {disabled} aria-label={ariaLabel} {title} on:click>
   <slot />
 </button>

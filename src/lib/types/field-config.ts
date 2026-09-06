@@ -25,15 +25,20 @@ export type FilterType = "date" | "numeric" | "select" | "text" | "none";
 export interface FieldConfigRow {
   id: number;
   TableName: string;
-  FieldOrderIndex: number | null;
+  DefaultFieldOrderIndex: number | null;
   FieldName: string;
   Label: string;
   DefaultDisplayField: boolean;
   FieldType: FieldType;
   FilterType: string;
   DefaultFieldColumnWidth: number | null;
-  CustomStyleForColumn: string | null;
+  DefaultCustomStyleForColumn: string | null;
   SuggestForSelect: string[] | null;
+  // [STT sắp xếp, hướng] — hướng: 0 = asc, 1 = desc. null nếu field không tham gia sort mặc định.
+  DefaultSortOrder: [number, number] | null;
+  // Số nguyên đơn (không phải tuple như DefaultSortOrder), giống DefaultFieldOrderIndex — số nhỏ
+  // = cấp nhóm ngoài cùng, số lớn = cấp lồng bên trong. null = field không tham gia nhóm dòng.
+  DefaultRowGroupOrder: number | null;
 }
 
 // Shape runtime đã parse, dùng xuyên suốt UI (form/bảng/filter).
@@ -47,6 +52,9 @@ export interface FieldConfig {
   columnWidth: number | null;
   customStyle: string | null;
   orderIndex: number | null;
+  defaultSortPriority: number | null;
+  defaultSortDirection: "asc" | "desc" | null;
+  groupOrder: number | null;
 }
 
 export function isNumericType(type: FieldType): boolean {

@@ -34,9 +34,4 @@ export interface ContractModuleConfig {
   storageKey: string;
   defaultUrl: string;
   defaultTable: string;
-  defaultSortFields: SortField[];
-  // Cột dùng để tính tổng hiển thị ở thẻ "Giá trị" trên đầu trang; null nếu module không có.
-  // Đây là cấu hình cấp module (không lặp lại theo field) nên không có cột tương ứng trong
-  // cf_field_config, vẫn khai báo tĩnh ở đây.
-  totalValueField: string | null;
 }

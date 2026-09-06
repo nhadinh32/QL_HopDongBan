@@ -37,7 +37,7 @@
       </button>
     </header>
 
-    <main class="w-full flex-1 px-2 py-2 sm:px-2 md:px-2 md:py-2">
+    <main class="w-full flex-1">
       <slot />
     </main>
   </div>

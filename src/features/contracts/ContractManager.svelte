@@ -14,6 +14,8 @@
     type ColumnFilters,
   } from "$lib/utils/contract-filters";
   import { isNumericType, type FieldConfig } from "$lib/types/field-config";
+  import { sortRows } from "$lib/utils/contract-sort";
+  import { groupFieldsFrom, buildRowGroupTree } from "$lib/utils/contract-grouping";
   import type {
     ConnectionConfig,
     ContractModuleConfig,
@@ -47,7 +49,7 @@
   // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
   let fieldConfigs: FieldConfig[] = [];
   let fieldConfigLoading = false;
-  let sortFields: SortField[] = module.defaultSortFields;
+  let sortFields: SortField[] = [];
   let config: ConnectionConfig = {
     url: module.defaultUrl,
     publicKey: "",
@@ -93,17 +95,10 @@
 
   $: if (filtersLoaded) localStorage.setItem(filtersStorageKey, JSON.stringify(filters));
 
-  // Tra cứu nhanh FieldConfig theo tên field, dùng ở compareValue/saveRecord thay cho
-  // 5 Set<string> trước đây.
-  $: fieldConfigMap = Object.fromEntries(fieldConfigs.map((field) => [field.field, field]));
   // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true); form nhập liệu
   // vẫn luôn dùng toàn bộ fieldConfigs (trừ id) để không "giấu mất" field nào lúc sửa.
   $: displayFields = fieldConfigs.filter((field) => field.defaultDisplay);
 
-  // Các giá trị dẫn xuất tự cập nhật theo dữ liệu và lựa chọn sắp xếp.
-  $: totalValue = module.totalValueField
-    ? rows.reduce((sum, row) => sum + (Number(row[module.totalValueField!]) || 0), 0)
-    : 0;
   // Bộ lọc do người dùng chọn/gõ theo từng cột đang có cấu hình (id không có ô lọc riêng,
   // field có filterKind "none" — cấu hình FilterType = "None" trong cf_field_config — cũng vậy).
   $: filterFields = computeFilterFields(
@@ -113,7 +108,13 @@
   );
   $: activeFilterCount = countActiveFilters(filters, filterFields);
   $: filteredRows = rows.filter((row) => matchesFilters(row, filters, filterFields));
-  $: sortedRows = sortRows(filteredRows, sortFields);
+  $: sortedRows = sortRows(filteredRows, sortFields, fieldConfigs);
+  // Field tham gia nhóm dòng (DefaultRowGroupOrder), theo đúng thứ tự cấp lồng nhau; cây nhóm
+  // dựng từ filteredRows (chưa sort phẳng) — sortFields chỉ có ý nghĩa sắp dòng lá TRONG mỗi
+  // nhóm (buildRowGroupTree tự gọi sortRows nội bộ ở từng nhóm lá), thứ tự các nhóm với nhau
+  // luôn cố định theo giá trị field nhóm, độc lập với sortFields.
+  $: groupFields = groupFieldsFrom(fieldConfigs);
+  $: groupTree = buildRowGroupTree(filteredRows, groupFields, sortFields, fieldConfigs);
   $: connected = Boolean(config.publicKey) && !notice;
   $: statusLabel = loading
     ? "Đang tải"
@@ -124,39 +125,13 @@
       : "Chưa kết nối";
   $: connectionLabel = connected ? `Đã kết nối · ${config.table}` : "Chưa kết nối";
 
-  function compareValue(
-    left: ContractValue,
-    right: ContractValue,
-    field: string,
-  ): number {
-    if (!hasValue(left) && !hasValue(right)) return 0;
-    if (!hasValue(left)) return 1;
-    if (!hasValue(right)) return -1;
-    const type = fieldConfigMap[field]?.type;
-    return type && isNumericType(type)
-      ? Number(left) - Number(right)
-      : String(left).localeCompare(String(right), "vi", {
-          sensitivity: "base",
-          numeric: true,
-        });
-  }
-
-  // Áp dụng lần lượt các cột sắp xếp; phần tử đầu trong rules có ưu tiên cao nhất.
-  function sortRows(
-    records: ContractRecord[],
-    rules: SortField[],
-  ): ContractRecord[] {
-    return [...records].sort((left, right) => {
-      for (const item of rules) {
-        const result = compareValue(
-          left[item.field],
-          right[item.field],
-          item.field,
-        );
-        if (result) return result * (item.direction === "asc" ? 1 : -1);
-      }
-      return 0;
-    });
+  // Sắp xếp mặc định đọc từ cf_field_config.DefaultSortOrder ([STT, hướng] trên từng field) —
+  // chỉ áp dụng khi người dùng chưa tự chọn sort nào (xem chỗ gọi ở loadFieldConfigs()).
+  function defaultSortFieldsFrom(configs: FieldConfig[]): SortField[] {
+    return configs
+      .filter((item) => item.defaultSortPriority != null)
+      .sort((a, b) => (a.defaultSortPriority ?? 0) - (b.defaultSortPriority ?? 0))
+      .map((item) => ({ field: item.field, direction: item.defaultSortDirection ?? "asc" }));
   }
 
   // Tải cấu hình cột từ cf_field_config (TableName = module.defaultTable, xem
@@ -165,6 +140,7 @@
     fieldConfigLoading = true;
     try {
       fieldConfigs = await loadFieldConfig(config, module.defaultTable);
+      if (sortFields.length === 0) sortFields = defaultSortFieldsFrom(fieldConfigs);
     } catch (error) {
       notice = `Không tải được cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
       fieldConfigs = [];
@@ -357,11 +333,7 @@
 
   {#if activeTab === "overview"}
     <div class="mt-2">
-      <StatCards
-        totalRows={rows.length}
-        totalValueLabel={totalValue ? `${totalValue.toLocaleString("vi-VN")} đ` : "—"}
-        {statusLabel}
-      />
+      <StatCards totalRows={rows.length} {statusLabel} />
     </div>
   {:else if activeTab === "list"}
     <div class="mt-2 space-y-3">
@@ -384,6 +356,7 @@
       <ContractTable
         fields={displayFields}
         rows={sortedRows}
+        {groupTree}
         {sortFields}
         loading={loading || fieldConfigLoading}
         hasConnection={Boolean(config.publicKey)}

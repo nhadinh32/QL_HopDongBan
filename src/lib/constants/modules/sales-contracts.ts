@@ -9,9 +9,4 @@ export const salesContractsModule: ContractModuleConfig = {
   storageKey: "contract-manager-config:sales-contracts",
   defaultUrl: "https://zjddgdqnqmzyafeoaiej.supabase.co/rest/v1/",
   defaultTable: "db_hopdongban",
-  defaultSortFields: [
-    { field: "SoHopDong", direction: "asc" },
-    { field: "LoaiHS", direction: "asc" },
-  ],
-  totalValueField: "GiaTriHS",
 };

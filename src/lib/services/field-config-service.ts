@@ -22,6 +22,7 @@ function toFilterType(value: string): FilterType {
 }
 
 function toFieldConfig(row: FieldConfigRow): FieldConfig {
+  const [priority, direction] = row.DefaultSortOrder ?? [];
   return {
     field: row.FieldName,
     label: row.Label || row.FieldName,
@@ -30,13 +31,16 @@ function toFieldConfig(row: FieldConfigRow): FieldConfig {
     suggestOptions: row.SuggestForSelect ?? [],
     filterKind: toFilterType(row.FilterType),
     columnWidth: row.DefaultFieldColumnWidth ?? null,
-    customStyle: row.CustomStyleForColumn ?? null,
-    orderIndex: row.FieldOrderIndex ?? null,
+    customStyle: row.DefaultCustomStyleForColumn ?? null,
+    orderIndex: row.DefaultFieldOrderIndex ?? null,
+    defaultSortPriority: priority ?? null,
+    defaultSortDirection: priority == null ? null : direction === 1 ? "desc" : "asc",
+    groupOrder: row.DefaultRowGroupOrder ?? null,
   };
 }
 
 // Tải cấu hình cột của một module (lọc theo TableName = bảng dữ liệu thật của module đó),
-// đã sắp theo FieldOrderIndex. Dùng chung ConnectionConfig (URL/key) đã cấu hình cho module —
+// đã sắp theo DefaultFieldOrderIndex. Dùng chung ConnectionConfig (URL/key) đã cấu hình cho module —
 // cf_field_config nằm cùng project Supabase, chỉ khác tên bảng.
 export async function loadFieldConfig(
   config: ConnectionConfig,
@@ -47,7 +51,7 @@ export async function loadFieldConfig(
     table: FIELD_CONFIG_TABLE,
   });
   const rows = await client.list(
-    `TableName=eq.${encodeURIComponent(tableName)}&order=FieldOrderIndex.asc`,
+    `TableName=eq.${encodeURIComponent(tableName)}&order=DefaultFieldOrderIndex.asc`,
   );
   return rows.map(toFieldConfig);
 }

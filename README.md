@@ -87,7 +87,7 @@ App.svelte
 
 `ContractManager` giữ hai danh sách cột, cả hai đều dẫn xuất từ `fieldConfigs: FieldConfig[]` (tải từ `cf_field_config` lúc `onMount`, xem `loadFieldConfigs()`):
 
-- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `FieldOrderIndex`. Dùng cho form nhập liệu (`ContractFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
+- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `DefaultFieldOrderIndex`. Dùng cho form nhập liệu (`ContractFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
 - `displayFields` — chỉ những cột có `DefaultDisplayField = true`, dùng cho bảng danh sách (`ContractTable`).
 
 Việc một cột thuộc kiểu nào (số/tiền tệ/phần trăm/văn bản dài/ngày/ngày giờ/select...) đọc thẳng từ cột `FieldType` của `cf_field_config` (xem `$lib/types/field-config.ts`), không còn Set tên cột khai báo tay trong file module nữa.
@@ -154,7 +154,7 @@ Một client REST tối giản, **không phụ thuộc SDK Supabase**, chỉ dù
 - `requestHeaders(publicKey)` — header cố định cho mọi request: `apikey`, `Content-Type: application/json`, và `Prefer: return=representation` (yêu cầu Supabase trả lại bản ghi vừa tạo/sửa thay vì rỗng).
 - `request(url, options)` — wrapper `fetch` dùng chung: ném lỗi kèm nội dung response nếu status không `ok`, còn nếu body rỗng (trường hợp DELETE) thì trả về mảng rỗng thay vì lỗi parse JSON.
 - `createSupabaseRestClient<T = ContractRecord>(config)` — trả về object có 4 hàm ứng với 4 thao tác CRUD, đều thao tác trên một bảng (`config.table`), generic theo kiểu dòng trả về để dùng lại được cho cả bảng dữ liệu lẫn `cf_field_config` (xem `field-config-service.ts`):
-  - `list(query?)` — `GET ?select=*`, nối thêm `query` (filter/order, vd. `"TableName=eq.x&order=FieldOrderIndex.asc"`) nếu có.
+  - `list(query?)` — `GET ?select=*`, nối thêm `query` (filter/order, vd. `"TableName=eq.x&order=DefaultFieldOrderIndex.asc"`) nếu có.
   - `create(payload)` — `POST` kèm `?select=*` để lấy lại bản ghi (và `id`) vừa tạo.
   - `update(id, payload)` — `PATCH ?id=eq.<id>&select=*`.
   - `remove(id)` — `DELETE ?id=eq.<id>`.
@@ -250,7 +250,7 @@ Form nhập URL Supabase, public key (ô `type="password"` để tránh lộ khi
 
 Ba bảng mới trên Supabase, sẽ thay thế `ModuleFieldConfig`/`defaultFields` khai báo cứng trong TypeScript:
 
-- **`cf_field_config`** — một dòng cho mỗi cột của một bảng module (cột `TableName` xác định thuộc bảng nào), gồm: `FieldOrderIndex`, `FieldName`, `Label`, `DefaultDisplayField`, `FieldType`, `FilterType`, `DefaultFieldColumnWidth`, `CustomStyleForColumn` (CSS inline thuần, vd. `"background-color:#dcfce7; font-weight:bold"` — áp trực tiếp qua `style`, không phải class Tailwind), `SuggestForSelect` (mảng Postgres `text[]`).
+- **`cf_field_config`** — một dòng cho mỗi cột của một bảng module (cột `TableName` xác định thuộc bảng nào), gồm: `DefaultFieldOrderIndex`, `FieldName`, `Label`, `DefaultDisplayField`, `FieldType`, `FilterType`, `DefaultFieldColumnWidth`, `DefaultCustomStyleForColumn` (CSS inline thuần, vd. `"background-color:#dcfce7; font-weight:bold"` — áp trực tiếp qua `style`, không phải class Tailwind), `SuggestForSelect` (mảng Postgres `text[]`).
 - **`cf_field_type`** — danh mục 11 giá trị hợp lệ của cột `FieldType`: `Text`, `LongText`, `Numeric`, `Percent`, `SingleSelectWithoutOther`, `SingleSelectWithOther`, `MultiSelectWithoutOther`, `MultiSelectWithOther`, `Date`, `DateTime`, `Currency`.
 - **`cf_filter_type`** — danh mục 4 giá trị hợp lệ của cột `FilterType`: `Date`, `Numeric`, `Select`, `Text`.
 

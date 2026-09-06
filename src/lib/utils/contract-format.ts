@@ -29,6 +29,14 @@ function formatMultiSelect(value: string): string {
     .join(", ");
 }
 
+// Độ rộng cột (px) — áp cho cả <th> lẫn <td> để cột đồng bộ chiều rộng. `columnWidth = null`
+// giữ hành vi tự co giãn theo nội dung.
+export function columnWidthStyle(field: FieldConfig): string {
+  return field.columnWidth != null
+    ? `width:${field.columnWidth}px; min-width:${field.columnWidth}px`
+    : "";
+}
+
 export function formatValue(value: ContractValue, config: FieldConfig): string {
   if (!hasValue(value)) return "—";
   switch (config.type) {

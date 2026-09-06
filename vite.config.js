@@ -9,6 +9,9 @@ export default defineConfig(({ command }) => ({
     outDir: 'docs',
     emptyOutDir: true
   },
+  server: {
+    host: true
+  },
   plugins: [tailwindcss(), svelte()],
   resolve: {
     alias: {
