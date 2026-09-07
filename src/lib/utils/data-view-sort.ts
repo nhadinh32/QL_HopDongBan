@@ -1,14 +1,14 @@
-// So sánh/sắp xếp dòng dữ liệu theo cấu hình cột — dùng chung giữa sort phẳng (ContractManager)
-// và sort dòng lá trong từng nhóm (contract-grouping.ts).
-import { hasValue } from "./contract-format";
-import type { ContractRecord, ContractValue, SortField } from "$lib/types/contracts";
+// So sánh/sắp xếp dòng dữ liệu theo cấu hình cột — dùng chung giữa sort phẳng (DataViewManager)
+// và sort dòng lá trong từng nhóm (data-view-grouping.ts).
+import { hasValue } from "./data-view-format";
+import type { DataRecord, DataValue, SortField } from "$lib/types/data-view";
 import { isNumericType, type FieldConfig } from "$lib/types/field-config";
 
 // So sánh 2 giá trị ô theo kiểu field — field=undefined (vd. không tra được cấu hình) coi như
 // so sánh chuỗi.
 export function compareValues(
-  left: ContractValue,
-  right: ContractValue,
+  left: DataValue,
+  right: DataValue,
   field: FieldConfig | undefined,
 ): number {
   if (!hasValue(left) && !hasValue(right)) return 0;
@@ -21,10 +21,10 @@ export function compareValues(
 
 // Áp dụng lần lượt các cột sắp xếp; phần tử đầu trong sortFields có ưu tiên cao nhất.
 export function sortRows(
-  rows: ContractRecord[],
+  rows: DataRecord[],
   sortFields: SortField[],
   fieldConfigs: FieldConfig[],
-): ContractRecord[] {
+): DataRecord[] {
   const configByField = new Map(fieldConfigs.map((item) => [item.field, item]));
   return [...rows].sort((left, right) => {
     for (const rule of sortFields) {

@@ -2,25 +2,25 @@
   // Màn hình quản lý một module dữ liệu (một bảng Supabase): giữ state/logic nghiệp vụ,
   // ghép các component UI đã tách. Tổng quát cho mọi module (Hợp đồng bán, Hợp đồng mua, ...)
   // qua prop `module` — component gốc App.svelte render một AppShell/Sidebar dùng chung ở
-  // ngoài, mỗi mục sidebar mount một ContractManager riêng với module tương ứng.
+  // ngoài, mỗi mục sidebar mount một DataViewManager riêng với module tương ứng.
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
   import { loadFieldConfig } from "$lib/services/field-config-service";
   import { isNumericType, type FieldConfig } from "$lib/types/field-config";
   import type {
     ConnectionConfig,
-    ContractModuleConfig,
-    ContractRecord,
-    ContractValue,
-  } from "$lib/types/contracts";
+    DataModuleConfig,
+    DataRecord,
+    DataValue,
+  } from "$lib/types/data-view";
   import Button from "$lib/components/ui/Button.svelte";
   import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
   import StatCards from "./StatCards.svelte";
-  import ContractTable from "./ContractTable.svelte";
-  import ContractFormModal from "./ContractFormModal.svelte";
+  import DataViewTable from "./DataViewTable.svelte";
+  import DataViewFormModal from "./DataViewFormModal.svelte";
   import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
 
-  export let module: ContractModuleConfig;
+  export let module: DataModuleConfig;
 
   // Trạng thái kết nối được bind ra ngoài để App.svelte hiển thị trên badge của topbar chung.
   export let connected = false;
@@ -33,7 +33,7 @@
     { id: "settings", label: "Cài đặt" },
   ];
   let activeTab: "overview" | "list" | "settings" = "list";
-  let rows: ContractRecord[] = [];
+  let rows: DataRecord[] = [];
   // Cấu hình cột đọc động từ cf_field_config (TableName = module.defaultTable) — nguồn duy
   // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
   let fieldConfigs: FieldConfig[] = [];
@@ -46,18 +46,18 @@
   let loading = false;
   let notice = "";
   let savedText = "";
-  let editRecord: ContractRecord | null | undefined = undefined;
-  let deleteRecord: ContractRecord | null = null;
+  let editRecord: DataRecord | null | undefined = undefined;
+  let deleteRecord: DataRecord | null = null;
   // Dòng đang chọn trong bảng danh sách (bấm 1 dòng để chọn/bỏ chọn) — nút "Sửa" trên thanh
   // công cụ thao tác lên dòng này thay vì có nút sửa nổi riêng theo từng dòng.
-  let selectedRow: ContractRecord | null = null;
+  let selectedRow: DataRecord | null = null;
   let formValues: Record<string, string> = {};
   let saveError = "";
   let saving = false;
   let showFilters = true;
   let listContentReady = false;
 
-  // Trì hoãn việc mount ContractTable đúng 1 nhịp (setTimeout 0 — chạy sau khi trình duyệt đã
+  // Trì hoãn việc mount DataViewTable đúng 1 nhịp (setTimeout 0 — chạy sau khi trình duyệt đã
   // kịp vẽ xong lượt cập nhật hiện tại, gồm cả trạng thái tab đang chọn) để bấm tab phản hồi
   // ngay lập tức, còn phần dựng bảng (nặng: tính lại filter/sort/group + tạo DOM) hiện
   // "Đang tải dữ liệu..." trước rồi mới chạy, giống trải nghiệm lần đầu vào trang.
@@ -159,7 +159,7 @@
     saveError = "";
   }
 
-  function openEdit(row: ContractRecord): void {
+  function openEdit(row: DataRecord): void {
     editRecord = row;
     formValues = Object.fromEntries(
       Object.entries(row).map(([field, value]) => [
@@ -174,7 +174,7 @@
     editRecord = undefined;
   }
 
-  function requestDelete(record: ContractRecord | null | undefined): void {
+  function requestDelete(record: DataRecord | null | undefined): void {
     if (record) deleteRecord = record;
   }
 
@@ -182,7 +182,7 @@
   async function saveRecord() {
     saving = true;
     saveError = "";
-    const payload: Record<string, ContractValue> = Object.fromEntries(
+    const payload: Record<string, DataValue> = Object.fromEntries(
       fieldConfigs
         .filter((field) => field.field !== "id" || !editRecord)
         .map((field) => {
@@ -298,7 +298,7 @@
     </div>
   {:else if activeTab === "list"}
     {#if listContentReady}
-      <ContractTable
+      <DataViewTable
         fields={displayFields}
         {fieldConfigs}
         {rows}
@@ -320,7 +320,7 @@
 </section>
 
 {#if editRecord !== undefined}
-  <ContractFormModal
+  <DataViewFormModal
     fields={fieldConfigs}
     {editRecord}
     {formValues}

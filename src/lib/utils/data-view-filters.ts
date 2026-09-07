@@ -1,9 +1,9 @@
 // Tiện ích lọc danh sách hồ sơ theo từng cột, dùng chung cho bảng của mọi module.
 // Kiểu lọc (FilterType) đọc thẳng từ FieldConfig (cf_field_config), không còn tự suy luận
-// từ dữ liệu như trước — panel bộ lọc (ContractFilters.svelte) tự sinh đúng loại điều khiển
+// từ dữ liệu như trước — panel bộ lọc (DataViewFilters.svelte) tự sinh đúng loại điều khiển
 // (slicer nhiều lựa chọn / khoảng ngày / khoảng số / tìm chuỗi) theo đúng cấu hình DB.
-import { hasValue } from "./contract-format";
-import type { ContractRecord } from "$lib/types/contracts";
+import { hasValue } from "./data-view-format";
+import type { DataRecord } from "$lib/types/data-view";
 import type { FieldConfig, FilterType } from "$lib/types/field-config";
 
 export type { FilterType };
@@ -34,7 +34,7 @@ function splitCellValues(value: string): string[] {
     .filter(Boolean);
 }
 
-export function distinctValues(rows: ContractRecord[], field: string): string[] {
+export function distinctValues(rows: DataRecord[], field: string): string[] {
   const values = new Set<string>();
   for (const row of rows) {
     if (!hasValue(row[field])) continue;
@@ -62,7 +62,7 @@ export function distinctValues(rows: ContractRecord[], field: string): string[] 
 // - từ 2 cột trượt trở lên: dòng không khớp "tất cả cột khác" của bất kỳ cột select nào → bỏ qua.
 export function computeFilterFields(
   fieldConfigs: FieldConfig[],
-  rows: ContractRecord[],
+  rows: DataRecord[],
   filters: ColumnFilters = {},
 ): FilterField[] {
   const asFilterField = (config: FieldConfig): FilterField => ({
@@ -74,7 +74,7 @@ export function computeFilterFields(
   const allFields = fieldConfigs.map(asFilterField);
   const selectFields = fieldConfigs.filter((config) => config.filterKind === "select");
 
-  const relevantRowsByField = new Map<string, ContractRecord[]>();
+  const relevantRowsByField = new Map<string, DataRecord[]>();
   for (const config of selectFields) relevantRowsByField.set(config.field, []);
 
   for (const row of rows) {
@@ -126,7 +126,7 @@ export function encodeSelectValues(values: string[]): string {
 }
 
 // Cột có đang bị lọc hay không — dùng để đếm badge "N bộ lọc" và để panel bộ lọc quyết định
-// có hiện nút xóa riêng (⨉) trên từng thẻ hay không (ContractFilters.svelte).
+// có hiện nút xóa riêng (⨉) trên từng thẻ hay không (DataViewFilters.svelte).
 export function isFilterActive(field: string, kind: FilterType, filters: ColumnFilters): boolean {
   if (kind === "date") return Boolean(filters[`${field}::from`] || filters[`${field}::to`]);
   if (kind === "numeric") return Boolean(filters[`${field}::min`] || filters[`${field}::max`]);
@@ -136,7 +136,7 @@ export function isFilterActive(field: string, kind: FilterType, filters: ColumnF
 
 // Một dòng dữ liệu có khớp bộ lọc riêng của MỘT cột hay không. Tách khỏi matchesFilters để
 // computeFilterFields tái dùng trực tiếp theo từng cột, không phải dựng mảng 1 phần tử mỗi lần gọi.
-function matchesFilter(row: ContractRecord, filters: ColumnFilters, { field, kind }: FilterField): boolean {
+function matchesFilter(row: DataRecord, filters: ColumnFilters, { field, kind }: FilterField): boolean {
   if (kind === "date") {
     const from = filters[`${field}::from`];
     const to = filters[`${field}::to`];
@@ -170,7 +170,7 @@ function matchesFilter(row: ContractRecord, filters: ColumnFilters, { field, kin
 
 // Một dòng dữ liệu có khớp toàn bộ bộ lọc đang áp dụng hay không (AND giữa các cột).
 export function matchesFilters(
-  row: ContractRecord,
+  row: DataRecord,
   filters: ColumnFilters,
   filterFields: FilterField[],
 ): boolean {

@@ -1,10 +1,10 @@
 // Tiện ích định dạng/kiểm tra giá trị ô dữ liệu, dùng chung giữa bảng và biểu mẫu.
 // Nhận FieldConfig của cột (đọc từ cf_field_config) thay vì hard-code tên cột, để dùng
 // lại được cho mọi module dữ liệu (Hợp đồng bán, Hợp đồng mua, ...).
-import type { ContractValue } from "$lib/types/contracts";
+import type { DataValue } from "$lib/types/data-view";
 import type { FieldConfig } from "$lib/types/field-config";
 
-export const hasValue = (value: ContractValue): boolean =>
+export const hasValue = (value: DataValue): boolean =>
   value !== null && value !== undefined && value !== "";
 
 function formatDateVN(value: string): string {
@@ -37,7 +37,7 @@ export function columnWidthStyle(field: FieldConfig): string {
     : "";
 }
 
-export function formatValue(value: ContractValue, config: FieldConfig): string {
+export function formatValue(value: DataValue, config: FieldConfig): string {
   if (!hasValue(value)) return "—";
   switch (config.type) {
     case "Currency":

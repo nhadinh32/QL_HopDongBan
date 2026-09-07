@@ -1,8 +1,8 @@
 // Dựng cây nhóm dòng (row grouping / treeview) cho bảng danh sách, dựa trên
 // FieldConfig.groupOrder (đọc từ cột DefaultRowGroupOrder trong cf_field_config).
-import { formatValue, hasValue } from "./contract-format";
-import { compareValues, sortRows } from "./contract-sort";
-import type { ContractRecord, ContractValue, SortField } from "$lib/types/contracts";
+import { formatValue, hasValue } from "./data-view-format";
+import { compareValues, sortRows } from "./data-view-sort";
+import type { DataRecord, DataValue, SortField } from "$lib/types/data-view";
 import { isMultiSelectType, type FieldConfig } from "$lib/types/field-config";
 
 const EMPTY_BUCKET_KEY = " __empty__";
@@ -11,7 +11,7 @@ export type GroupNode =
   | {
       kind: "group";
       field: FieldConfig;
-      value: ContractValue;
+      value: DataValue;
       label: string;
       // Khoá duy nhất theo cả đường dẫn từ gốc (field+value mỗi cấp nối lại) — dùng làm #each key
       // và key trong collapsedKeys, để 2 nhóm cùng giá trị nhưng khác nhánh cha không đụng nhau.
@@ -20,9 +20,9 @@ export type GroupNode =
       rowCount: number;
       // Giá trị subtotal đã tính sẵn cho các field có FieldConfig.subtotal khác null, key =
       // field.field. Tính trên toàn bộ dòng thuộc nhánh này (kể cả các cấp con lồng sâu hơn).
-      subtotals: Record<string, ContractValue | number | null>;
+      subtotals: Record<string, DataValue | number | null>;
     }
-  | { kind: "leaf"; rows: ContractRecord[] };
+  | { kind: "leaf"; rows: DataRecord[] };
 
 // Lọc + sắp field tham gia nhóm theo groupOrder tăng dần. Field MultiSelect bị loại (1 dòng có
 // thể thuộc nhiều giá trị cùng lúc → mơ hồ khi làm cấp nhóm), chỉ cảnh báo console chứ không throw
@@ -44,9 +44,9 @@ export function groupFieldsFrom(fieldConfigs: FieldConfig[]): FieldConfig[] {
 
 // Tính subtotal của 1 field trên tập dòng thuộc 1 nhóm. "count" luôn là tổng số dòng trong nhóm
 // (giống nhau cho mọi cột đặt count); các loại khác chỉ tính trên các dòng có giá trị (bỏ qua
-// dòng rỗng ở chính cột đó). max/min dùng lại compareValues (contract-sort.ts) để so sánh nhất
+// dòng rỗng ở chính cột đó). max/min dùng lại compareValues (data-view-sort.ts) để so sánh nhất
 // quán với cách sort hiện có, kể cả field kiểu Date/Text.
-function computeSubtotal(rows: ContractRecord[], field: FieldConfig): ContractValue | number | null {
+function computeSubtotal(rows: DataRecord[], field: FieldConfig): DataValue | number | null {
   if (field.subtotal === "count") return rows.length;
   const values = rows.map((row) => row[field.field]).filter(hasValue);
   if (!values.length) return null;
@@ -67,10 +67,10 @@ function computeSubtotal(rows: ContractRecord[], field: FieldConfig): ContractVa
 }
 
 function computeSubtotals(
-  rows: ContractRecord[],
+  rows: DataRecord[],
   fieldConfigs: FieldConfig[],
-): Record<string, ContractValue | number | null> {
-  const result: Record<string, ContractValue | number | null> = {};
+): Record<string, DataValue | number | null> {
+  const result: Record<string, DataValue | number | null> = {};
   for (const field of fieldConfigs) {
     if (field.subtotal != null) result[field.field] = computeSubtotal(rows, field);
   }
@@ -78,10 +78,10 @@ function computeSubtotals(
 }
 
 // Không field nào tham gia nhóm → trả về cây có đúng 1 node "leaf" chứa toàn bộ dòng (đã sort),
-// thay vì mảng rỗng — để phía render (ContractTable.svelte) luôn có một cây hợp lệ để vẽ, không
+// thay vì mảng rỗng — để phía render (DataViewTable.svelte) luôn có một cây hợp lệ để vẽ, không
 // cần rẽ nhánh if/else giữa "có nhóm" và "không nhóm".
 export function buildRowGroupTree(
-  rows: ContractRecord[],
+  rows: DataRecord[],
   groupFields: FieldConfig[],
   sortFields: SortField[],
   fieldConfigs: FieldConfig[],
@@ -92,7 +92,7 @@ export function buildRowGroupTree(
 }
 
 function buildLevel(
-  rows: ContractRecord[],
+  rows: DataRecord[],
   groupFields: FieldConfig[],
   sortFields: SortField[],
   fieldConfigs: FieldConfig[],
@@ -100,8 +100,8 @@ function buildLevel(
   parentKey: string,
 ): GroupNode[] {
   const field = groupFields[depth];
-  const buckets = new Map<string, ContractRecord[]>();
-  const rawByKey = new Map<string, ContractValue>();
+  const buckets = new Map<string, DataRecord[]>();
+  const rawByKey = new Map<string, DataValue>();
   for (const row of rows) {
     const raw = row[field.field];
     const key = hasValue(raw) ? String(raw) : EMPTY_BUCKET_KEY;

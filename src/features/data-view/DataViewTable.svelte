@@ -4,29 +4,29 @@
   // thay vì hard-code Set cột số/cột dài.
   //
   // Chọn dòng để sửa: bấm 1 dòng để chọn (tô nền), bấm lại để bỏ chọn — nút "Sửa" thao tác trên
-  // dòng đang chọn nằm ở thanh công cụ chung (ContractManager.svelte), không phải trong bảng.
+  // dòng đang chọn nằm ở thanh công cụ chung (DataViewManager.svelte), không phải trong bảng.
   import { onMount } from "svelte";
-  import { columnWidthStyle } from "$lib/utils/contract-format";
-  import ContractTableGroupRows from "./ContractTableGroupRows.svelte";
-  import ContractFilters from "./ContractFilters.svelte";
-  import type { ContractRecord, SortField } from "$lib/types/contracts";
+  import { columnWidthStyle } from "$lib/utils/data-view-format";
+  import DataViewTableGroupRows from "./DataViewTableGroupRows.svelte";
+  import DataViewFilters from "./DataViewFilters.svelte";
+  import type { DataRecord, SortField } from "$lib/types/data-view";
   import type { FieldConfig } from "$lib/types/field-config";
-  import { groupFieldsFrom, buildRowGroupTree } from "$lib/utils/contract-grouping";
-  import { sortRows } from "$lib/utils/contract-sort";
+  import { groupFieldsFrom, buildRowGroupTree } from "$lib/utils/data-view-grouping";
+  import { sortRows } from "$lib/utils/data-view-sort";
   import {
     computeFilterFields,
     countActiveFilters,
     matchesFilters,
     type ColumnFilters,
-  } from "$lib/utils/contract-filters";
+  } from "$lib/utils/data-view-filters";
 
   export let fields: FieldConfig[];
   export let fieldConfigs: FieldConfig[];
-  export let rows: ContractRecord[];
+  export let rows: DataRecord[];
   export let loading: boolean;
   export let hasConnection: boolean;
-  export let selectedRow: ContractRecord | null;
-  export let onSelectRow: (row: ContractRecord) => void;
+  export let selectedRow: DataRecord | null;
+  export let onSelectRow: (row: DataRecord) => void;
   export let showFilters: boolean;
   export let storageKey: string;
 
@@ -62,8 +62,8 @@
         : sortFields.filter((item) => item.field !== field);
   }
 
-  // Ghép hậu tố ":filters" ngay tại đây — quy ước đặt tên key lưu bộ lọc thuộc về ContractTable,
-  // ContractManager chỉ cần biết storageKey gốc (dùng chung với việc lưu ConnectionConfig).
+  // Ghép hậu tố ":filters" ngay tại đây — quy ước đặt tên key lưu bộ lọc thuộc về DataViewTable,
+  // DataViewManager chỉ cần biết storageKey gốc (dùng chung với việc lưu ConnectionConfig).
   const filtersStorageKey = `${storageKey}:filters`;
   let filters: ColumnFilters = {};
   // Chỉ ghi bộ lọc vào localStorage SAU khi đã đọc xong ở onMount, tránh việc ghi đè
@@ -128,14 +128,14 @@
     collapsedKeys = next;
   }
 
-  function onRowClick(row: ContractRecord): void {
+  function onRowClick(row: DataRecord): void {
     onSelectRow(row);
   }
 </script>
 
 <div class="flex h-0 min-h-0 flex-1 flex-col">
   {#if showFilters}
-    <ContractFilters
+    <DataViewFilters
       {filterFields}
       {filters}
       activeCount={activeFilterCount}
@@ -179,7 +179,7 @@
             </tr>
           </thead>
           <tbody>
-            <ContractTableGroupRows
+            <DataViewTableGroupRows
               nodes={groupTree}
               {fields}
               showCollapseColumn={hasGroupColumn}

@@ -1,4 +1,4 @@
-import type { ConnectionConfig } from "$lib/types/contracts";
+import type { ConnectionConfig } from "$lib/types/data-view";
 import type { FieldConfig, FieldConfigRow, FilterType, SubtotalType } from "$lib/types/field-config";
 import { createSupabaseRestClient } from "./supabase-rest";
 
@@ -7,7 +7,7 @@ import { createSupabaseRestClient } from "./supabase-rest";
 const FIELD_CONFIG_TABLE = "cf_field_config";
 
 // cf_field_config lưu FilterType dạng PascalCase (Date/Numeric/Select/Text/None); toàn bộ UI
-// (contract-filters.ts, ContractFilters.svelte) dùng union chữ thường có sẵn từ trước.
+// (data-view-filters.ts, DataViewFilters.svelte) dùng union chữ thường có sẵn từ trước.
 function toFilterType(value: string): FilterType {
   const lower = value.toLowerCase();
   if (

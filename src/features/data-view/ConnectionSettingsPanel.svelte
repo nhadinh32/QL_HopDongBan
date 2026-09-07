@@ -1,7 +1,7 @@
 <script lang="ts">
   // Biểu mẫu cấu hình kết nối Supabase, chỉ lưu trên trình duyệt hiện tại.
   import Button from "$lib/components/ui/Button.svelte";
-  import type { ConnectionConfig } from "$lib/types/contracts";
+  import type { ConnectionConfig } from "$lib/types/data-view";
 
   export let config: ConnectionConfig;
   export let savedText: string;

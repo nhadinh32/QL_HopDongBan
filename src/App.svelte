@@ -4,7 +4,7 @@
   // sidebar sẽ tự hiện thêm mục mà không cần sửa gì ở đây.
   import { MODULES } from "$lib/constants/modules";
   import AppShell from "$lib/components/layout/AppShell.svelte";
-  import ContractManager from "./features/contracts/ContractManager.svelte";
+  import DataViewManager from "./features/data-view/DataViewManager.svelte";
 
   const navItems = MODULES.map((item) => ({
     id: item.id,
@@ -28,6 +28,6 @@
   {connectionLabel}
 >
   {#key activeModuleId}
-    <ContractManager module={activeModule} bind:connected bind:connectionLabel />
+    <DataViewManager module={activeModule} bind:connected bind:connectionLabel />
   {/key}
 </AppShell>
