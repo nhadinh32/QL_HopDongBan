@@ -75,3 +75,39 @@ export async function loadFieldConfig(
   );
   return rows.map(toFieldConfig);
 }
+
+function fieldConfigClient(config: ConnectionConfig) {
+  return createSupabaseRestClient<FieldConfigRow>({ ...config, table: FIELD_CONFIG_TABLE });
+}
+
+// Tải danh sách cột THÔ (FieldConfigRow, chưa parse) của một module — dùng cho tab "Cấu hình",
+// nơi cần sửa/xóa đúng theo id/TableName thật thay vì shape FieldConfig đã rút gọn.
+export async function loadFieldConfigRows(
+  config: ConnectionConfig,
+  tableName: string,
+): Promise<FieldConfigRow[]> {
+  return fieldConfigClient(config).list(
+    `TableName=eq.${encodeURIComponent(tableName)}&order=DefaultFieldOrderIndex.asc`,
+  );
+}
+
+export async function createFieldConfigRow(
+  config: ConnectionConfig,
+  row: Omit<FieldConfigRow, "id">,
+): Promise<FieldConfigRow> {
+  const [created] = await fieldConfigClient(config).create(row);
+  return created;
+}
+
+export async function updateFieldConfigRow(
+  config: ConnectionConfig,
+  id: number,
+  patch: Partial<FieldConfigRow>,
+): Promise<FieldConfigRow> {
+  const [updated] = await fieldConfigClient(config).update(id, patch);
+  return updated;
+}
+
+export async function deleteFieldConfigRow(config: ConnectionConfig, id: number): Promise<void> {
+  await fieldConfigClient(config).remove(id);
+}
