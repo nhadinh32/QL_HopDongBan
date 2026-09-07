@@ -16,8 +16,8 @@
   import Button from "$lib/components/ui/Button.svelte";
   import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
   import StatCards from "./StatCards.svelte";
-  import DataViewTable from "./DataViewTable.svelte";
-  import DataViewFormModal from "./DataViewFormModal.svelte";
+  import DataViewTable from "$lib/components/ui/DataViewTable.svelte";
+  import DataViewFormModal from "$lib/components/ui/DataViewFormModal.svelte";
   import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
 
   export let module: DataModuleConfig;

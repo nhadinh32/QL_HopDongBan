@@ -60,13 +60,13 @@ src/
 │           ├── Modal.svelte         # Khung dialog nền mờ dùng chung, size sm/md/lg
 │           ├── ConfirmDialog.svelte # Hộp thoại xác nhận (dựa trên Modal)
 │           ├── Badge.svelte         # Chip trạng thái có chấm màu theo tone
-│           └── SelectCombobox.svelte # Combobox dùng chung cho cả 4 biến thể select (đơn/nhiều × có/không cho gõ tự do)
+│           ├── SelectCombobox.svelte # Combobox dùng chung cho cả 4 biến thể select (đơn/nhiều × có/không cho gõ tự do)
+│           ├── DataViewTable.svelte # Khung bảng dữ liệu dùng chung: header sort, các trạng thái rỗng/tải/lỗi
+│           ├── DataViewTableGroupRows.svelte # Render đệ quy cây nhóm dòng (treeview) + dòng dữ liệu lá
+│           ├── DataViewFilters.svelte # Panel bộ lọc theo cột (dạng slicer/khoảng/tìm chuỗi)
+│           └── DataViewFormModal.svelte # Modal thêm/sửa một hồ sơ
 └── features/data-view/
     ├── DataViewManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
-    ├── DataViewTable.svelte         # Khung bảng: header sort, các trạng thái rỗng/tải/lỗi
-    ├── DataViewTableGroupRows.svelte # Render đệ quy cây nhóm dòng (treeview) + dòng dữ liệu lá
-    ├── DataViewFilters.svelte       # Panel bộ lọc theo cột (dạng slicer/khoảng/tìm chuỗi)
-    ├── DataViewFormModal.svelte     # Modal thêm/sửa một hồ sơ
     ├── StatCards.svelte             # 2 thẻ số liệu nhanh ở tab Tổng quan (tổng hồ sơ, trạng thái)
     └── ConnectionSettingsPanel.svelte # Form nhập URL/API key/tên bảng Supabase
 ```
@@ -86,7 +86,7 @@ App.svelte
          └─ ConfirmDialog (xác nhận xóa)
 ```
 
-`DataViewManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại trong `features/data-view/` thuần hiển thị — nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`).
+`DataViewManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại — `StatCards`/`ConnectionSettingsPanel` trong `features/data-view/`, và `DataViewTable`/`DataViewFilters`/`DataViewFormModal`/`DataViewTableGroupRows` dùng chung trong `lib/components/ui/` — thuần hiển thị: nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`). Đặt 4 component này trong `lib/components/ui/` (thay vì `features/data-view/`) để có thể dựng nhiều bảng dữ liệu độc lập ở nơi khác trong app mà không phải phụ thuộc vào `DataViewManager`.
 
 ### Vì sao cột dữ liệu không hard-code trong component?
 
