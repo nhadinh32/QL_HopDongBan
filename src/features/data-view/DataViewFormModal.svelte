@@ -4,7 +4,7 @@
   import Modal from "$lib/components/ui/Modal.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import SelectCombobox from "$lib/components/ui/SelectCombobox.svelte";
-  import type { ContractRecord } from "$lib/types/contracts";
+  import type { DataRecord } from "$lib/types/data-view";
   import {
     allowsCustomValue,
     isMultiSelectType,
@@ -14,7 +14,7 @@
   } from "$lib/types/field-config";
 
   export let fields: FieldConfig[];
-  export let editRecord: ContractRecord | null;
+  export let editRecord: DataRecord | null;
   export let formValues: Record<string, string>;
   export let saveError: string;
   export let saving: boolean;

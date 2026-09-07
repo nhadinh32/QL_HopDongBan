@@ -2,23 +2,23 @@
   // Render đệ quy cây nhóm dòng (GroupNode[]) — mỗi cấp nhóm là 1 dòng tiêu đề (bấm để
   // thu/mở), lồng vào bên trong là các cấp con tiếp theo hoặc dòng lá (<tr> dữ liệu, vẽ thẳng
   // ở đây — chỉ còn 1 chỗ gọi nên không tách component riêng nữa).
-  import { formatValue, hasValue, columnWidthStyle } from "$lib/utils/contract-format";
+  import { formatValue, hasValue, columnWidthStyle } from "$lib/utils/data-view-format";
   import Button from "$lib/components/ui/Button.svelte";
-  import type { ContractRecord } from "$lib/types/contracts";
+  import type { DataRecord } from "$lib/types/data-view";
   import { isNumericType, type FieldConfig } from "$lib/types/field-config";
-  import type { ContractValue } from "$lib/types/contracts";
-  import type { GroupNode } from "$lib/utils/contract-grouping";
+  import type { DataValue } from "$lib/types/data-view";
+  import type { GroupNode } from "$lib/utils/data-view-grouping";
 
   export let nodes: GroupNode[];
   export let fields: FieldConfig[];
   export let collapsedKeys: Set<string>;
   export let onToggleCollapse: (key: string) => void;
-  export let selectedRow: ContractRecord | null;
-  export let onRowClick: (row: ContractRecord) => void;
+  export let selectedRow: DataRecord | null;
+  export let onRowClick: (row: DataRecord) => void;
   export let showCollapseColumn = false;
   // Chỉ dùng để chọn màu theo cấp nhóm (không dùng để thụt lề). Phải liệt kê đủ 4 chuỗi class
   // dạng literal (không ghép chuỗi runtime kiểu `bg-primary-${n}`) vì Tailwind chỉ sinh CSS cho
-  // class thấy được lúc build — xem lý do tương tự ở ContractTable.svelte/CustomStyleForColumn.
+  // class thấy được lúc build — xem lý do tương tự ở DataViewTable.svelte/CustomStyleForColumn.
   export let depth = 0;
 
   // Viền trên/dưới dùng chung cho mọi <td> trong file này (cả dòng nhóm lẫn dòng lá).
@@ -33,9 +33,9 @@
 
   // "count" là số dòng thuần (không phải giá trị của cột) nên không áp định dạng Currency/Percent
   // của field; các loại subtotal còn lại tái dùng formatValue để giữ định dạng theo field.type.
-  function formatSubtotal(value: ContractValue | number | null, field: FieldConfig): string {
+  function formatSubtotal(value: DataValue | number | null, field: FieldConfig): string {
     if (field.subtotal === "count") return String(value ?? 0);
-    return formatValue(value as ContractValue, field);
+    return formatValue(value as DataValue, field);
   }
 </script>
 

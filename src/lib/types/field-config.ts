@@ -15,10 +15,10 @@ export type FieldType =
   | "DateTime"
   | "Currency";
 
-// Giữ nguyên union chữ thường đã có sẵn ở contract-filters.ts, chỉ chuyển định nghĩa sang đây
+// Giữ nguyên union chữ thường đã có sẵn ở data-view-filters.ts, chỉ chuyển định nghĩa sang đây
 // để field-config.ts làm "nguồn gốc" — cf_field_config lưu PascalCase (Date/Numeric/Select/Text/None),
 // field-config-service.ts chuyển về chữ thường khi parse. "none" = field không áp dụng filter,
-// bị loại khỏi filterFields ngay ở ContractManager.svelte (không render thẻ lọc nào cho nó).
+// bị loại khỏi filterFields ngay ở DataViewManager.svelte (không render thẻ lọc nào cho nó).
 export type FilterType = "date" | "numeric" | "select" | "text" | "none";
 
 export type SubtotalType = "sum" | "count" | "max" | "min" | "average" | "product";

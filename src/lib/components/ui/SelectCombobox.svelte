@@ -3,7 +3,7 @@
   // chỉ khác nhau qua 2 prop `multiple`/`allowCustom`, tránh viết 4 component gần giống nhau.
   // Giá trị luôn là string: single → chính giá trị đó, multiple → nối các lựa chọn bằng `;`
   // (cùng quy ước lưu trữ với multi-select trong dữ liệu hợp đồng) — nhờ vậy nơi gọi
-  // (ContractFormModal, formValues: Record<string,string>) không cần đổi kiểu dữ liệu.
+  // (DataViewFormModal, formValues: Record<string,string>) không cần đổi kiểu dữ liệu.
   export let options: string[] = [];
   export let multiple = false;
   export let allowCustom = false;

@@ -1,4 +1,4 @@
-# Quản lý hợp đồng bán
+# Quản lý dữ liệu
 
 Ứng dụng Svelte 5 + Vite + TypeScript, xuất tĩnh (static site) để triển khai trên GitHub Pages. Ứng dụng không có backend riêng — dữ liệu đọc/ghi trực tiếp từ trình duyệt tới một bảng **Supabase** qua REST API, dùng public key do người dùng tự nhập và lưu trong `localStorage` của máy họ. Toàn bộ quyền đọc/ghi thực sự do Supabase Row Level Security (RLS) kiểm soát, không phải do mã nguồn front-end.
 
@@ -38,7 +38,7 @@ src/
 ├── app.css                          # Import Tailwind + token màu thương hiệu + style nền cho label/input/select dùng chung
 ├── lib/
 │   ├── types/
-│   │   ├── contracts.ts             # Kiểu dữ liệu chung (ContractRecord, ConnectionConfig, SortField, ContractModuleConfig)
+│   │   ├── data-view.ts             # Kiểu dữ liệu chung (DataRecord, ConnectionConfig, SortField, DataModuleConfig)
 │   │   └── field-config.ts          # FieldType/FilterType + FieldConfig (shape cột đọc từ cf_field_config)
 │   ├── constants/modules/
 │   │   ├── sales-contracts.ts       # Khai báo module "Hợp đồng bán": id/label/storageKey + kết nối Supabase mặc định
@@ -47,10 +47,10 @@ src/
 │   │   ├── supabase-rest.ts         # Client REST tối giản gọi Supabase (list/create/update/remove), generic theo bảng
 │   │   └── field-config-service.ts  # Tải cấu hình cột từ cf_field_config theo TableName
 │   ├── utils/
-│   │   ├── contract-format.ts       # Định dạng ô dữ liệu (ngày/giờ/tiền tệ/phần trăm/multi-select) + độ rộng cột + kiểm tra rỗng
-│   │   ├── contract-sort.ts         # So sánh/sắp xếp dòng theo FieldConfig, dùng chung cho sort phẳng và sort trong từng nhóm
-│   │   ├── contract-filters.ts      # Tính FilterField theo FieldConfig + hàm khớp lọc (liên kết kiểu slicer Excel)
-│   │   └── contract-grouping.ts     # Dựng cây nhóm dòng (treeview) nhiều cấp theo FieldConfig.groupOrder
+│   │   ├── data-view-format.ts      # Định dạng ô dữ liệu (ngày/giờ/tiền tệ/phần trăm/multi-select) + độ rộng cột + kiểm tra rỗng
+│   │   ├── data-view-sort.ts        # So sánh/sắp xếp dòng theo FieldConfig, dùng chung cho sort phẳng và sort trong từng nhóm
+│   │   ├── data-view-filters.ts     # Tính FilterField theo FieldConfig + hàm khớp lọc (liên kết kiểu slicer Excel)
+│   │   └── data-view-grouping.ts    # Dựng cây nhóm dòng (treeview) nhiều cấp theo FieldConfig.groupOrder
 │   └── components/
 │       ├── layout/
 │       │   ├── AppShell.svelte      # Khung ngoài cùng: sidebar cố định + topbar mobile + vùng nội dung
@@ -61,39 +61,39 @@ src/
 │           ├── ConfirmDialog.svelte # Hộp thoại xác nhận (dựa trên Modal)
 │           ├── Badge.svelte         # Chip trạng thái có chấm màu theo tone
 │           └── SelectCombobox.svelte # Combobox dùng chung cho cả 4 biến thể select (đơn/nhiều × có/không cho gõ tự do)
-└── features/contracts/
-    ├── ContractManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
-    ├── ContractTable.svelte         # Khung bảng: header sort, các trạng thái rỗng/tải/lỗi
-    ├── ContractTableGroupRows.svelte # Render đệ quy cây nhóm dòng (treeview) + dòng dữ liệu lá
-    ├── ContractFilters.svelte       # Panel bộ lọc theo cột (dạng slicer/khoảng/tìm chuỗi)
-    ├── ContractFormModal.svelte     # Modal thêm/sửa một hồ sơ
+└── features/data-view/
+    ├── DataViewManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
+    ├── DataViewTable.svelte         # Khung bảng: header sort, các trạng thái rỗng/tải/lỗi
+    ├── DataViewTableGroupRows.svelte # Render đệ quy cây nhóm dòng (treeview) + dòng dữ liệu lá
+    ├── DataViewFilters.svelte       # Panel bộ lọc theo cột (dạng slicer/khoảng/tìm chuỗi)
+    ├── DataViewFormModal.svelte     # Modal thêm/sửa một hồ sơ
     ├── StatCards.svelte             # 2 thẻ số liệu nhanh ở tab Tổng quan (tổng hồ sơ, trạng thái)
     └── ConnectionSettingsPanel.svelte # Form nhập URL/API key/tên bảng Supabase
 ```
 
 ## Kiến trúc tổng quan
 
-Ứng dụng được thiết kế để **tổng quát cho nhiều "module dữ liệu"** (nhiều bảng Supabase khác nhau, ví dụ Hợp đồng bán, Hợp đồng mua...) mà không phải viết lại UI cho từng module. Cách làm: `ContractModuleConfig` chỉ còn giữ thông tin **cấp module** (`id`, `label`, `storageKey`, URL/tên bảng Supabase mặc định) — mọi thứ **theo từng cột** (tên trường, nhãn hiển thị, kiểu nhập liệu, cách lọc, hiển thị mặc định, thứ tự, độ rộng, style, sort mặc định, cấp nhóm dòng) đọc **động** từ bảng Supabase `cf_field_config` (lọc theo `TableName = module.defaultTable`), UI chỉ đọc `FieldConfig[]` trả về để tự sinh giao diện.
+Ứng dụng được thiết kế để **tổng quát cho nhiều "module dữ liệu"** (nhiều bảng Supabase khác nhau, ví dụ Hợp đồng bán, Hợp đồng mua...) mà không phải viết lại UI cho từng module. Cách làm: `DataModuleConfig` chỉ còn giữ thông tin **cấp module** (`id`, `label`, `storageKey`, URL/tên bảng Supabase mặc định) — mọi thứ **theo từng cột** (tên trường, nhãn hiển thị, kiểu nhập liệu, cách lọc, hiển thị mặc định, thứ tự, độ rộng, style, sort mặc định, cấp nhóm dòng) đọc **động** từ bảng Supabase `cf_field_config` (lọc theo `TableName = module.defaultTable`), UI chỉ đọc `FieldConfig[]` trả về để tự sinh giao diện.
 
 ```
 App.svelte
  └─ AppShell (sidebar dùng chung, đọc MODULES để sinh menu)
-     └─ ContractManager (mount lại mỗi khi đổi module, nhờ {#key activeModuleId})
+     └─ DataViewManager (mount lại mỗi khi đổi module, nhờ {#key activeModuleId})
          ├─ Tab "Tổng quan" → StatCards
-         ├─ Tab "Danh sách" → ContractFilters + ContractTable → ContractTableGroupRows
+         ├─ Tab "Danh sách" → DataViewFilters + DataViewTable → DataViewTableGroupRows
          ├─ Tab "Cài đặt"  → ConnectionSettingsPanel
-         ├─ ContractFormModal (thêm/sửa, hiện đè lên khi editRecord !== undefined)
+         ├─ DataViewFormModal (thêm/sửa, hiện đè lên khi editRecord !== undefined)
          └─ ConfirmDialog (xác nhận xóa)
 ```
 
-`ContractManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại trong `features/contracts/` thuần hiển thị — nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`).
+`DataViewManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại trong `features/data-view/` thuần hiển thị — nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`).
 
 ### Vì sao cột dữ liệu không hard-code trong component?
 
-`ContractManager` giữ hai danh sách cột, cả hai đều dẫn xuất từ `fieldConfigs: FieldConfig[]` (tải từ `cf_field_config` lúc `onMount`, xem `loadFieldConfigs()`):
+`DataViewManager` giữ hai danh sách cột, cả hai đều dẫn xuất từ `fieldConfigs: FieldConfig[]` (tải từ `cf_field_config` lúc `onMount`, xem `loadFieldConfigs()`):
 
-- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `DefaultFieldOrderIndex`. Dùng cho form nhập liệu (`ContractFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
-- `displayFields` — chỉ những cột có `DefaultDisplayField = true`, dùng cho bảng danh sách (`ContractTable`).
+- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `DefaultFieldOrderIndex`. Dùng cho form nhập liệu (`DataViewFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
+- `displayFields` — chỉ những cột có `DefaultDisplayField = true`, dùng cho bảng danh sách (`DataViewTable`).
 
 Việc một cột thuộc kiểu nào (số/tiền tệ/phần trăm/văn bản dài/ngày/ngày giờ/select...) đọc thẳng từ cột `FieldType` của `cf_field_config` (xem `$lib/types/field-config.ts`), sort mặc định đọc từ `DefaultSortOrder`, và cấp nhóm dòng đọc từ `DefaultRowGroupOrder` — không có Set tên cột nào khai báo tay trong file module.
 
@@ -103,7 +103,7 @@ Việc một cột thuộc kiểu nào (số/tiền tệ/phần trăm/văn bản
 
 - **`index.html`** — có một `<div id="app">` và nạp `src/main.ts` làm module.
 - **`src/main.ts`** — gọi `mount(App, { target })` của Svelte 5 để render `App.svelte` vào `#app`.
-- **`src/App.svelte`** — component gốc. Đọc danh sách `MODULES`, dựng `navItems` cho sidebar, giữ `activeModuleId` (module đang chọn). Bọc `ContractManager` trong khối `{#key activeModuleId}` để **buộc Svelte huỷ và tạo lại component** mỗi khi đổi module — nhờ vậy state cũ (bộ lọc, dòng đang chọn...) của module trước không bị rò rỉ sang module sau. `connected`/`connectionLabel` được `bind:` hai chiều từ `ContractManager` lên để `AppShell` hiển thị badge trạng thái kết nối chung trên mọi tab.
+- **`src/App.svelte`** — component gốc. Đọc danh sách `MODULES`, dựng `navItems` cho sidebar, giữ `activeModuleId` (module đang chọn). Bọc `DataViewManager` trong khối `{#key activeModuleId}` để **buộc Svelte huỷ và tạo lại component** mỗi khi đổi module — nhờ vậy state cũ (bộ lọc, dòng đang chọn...) của module trước không bị rò rỉ sang module sau. `connected`/`connectionLabel` được `bind:` hai chiều từ `DataViewManager` lên để `AppShell` hiển thị badge trạng thái kết nối chung trên mọi tab.
 
 ### Layout dùng chung (`lib/components/layout`)
 
@@ -125,24 +125,24 @@ Khai báo bảng màu thương hiệu `--color-primary-*` qua `@theme` của Tai
 - `label` → chữ nhỏ, đậm, màu slate.
 - `input`, `textarea`, `select` → khung bo góc, viền, padding, và style `:focus` (viền + ring xanh) đồng nhất trên toàn app.
 
-Nhờ vậy các form (`ContractFormModal`, `ConnectionSettingsPanel`, `ContractFilters`) chỉ cần thêm class layout mà không phải khai báo lại toàn bộ style input mỗi nơi.
+Nhờ vậy các form (`DataViewFormModal`, `ConnectionSettingsPanel`, `DataViewFilters`) chỉ cần thêm class layout mà không phải khai báo lại toàn bộ style input mỗi nơi.
 
-### Khai báo kiểu dữ liệu (`lib/types/contracts.ts`)
+### Khai báo kiểu dữ liệu (`lib/types/data-view.ts`)
 
 File trung tâm định nghĩa các kiểu dùng xuyên suốt:
 
-- `ContractValue` — kiểu một ô dữ liệu (`string | number | boolean | null | undefined`).
-- `ContractRecord` — một bản ghi, có `id` bắt buộc, còn lại là index signature `[field: string]: ContractValue` vì cột lấy động từ Supabase.
+- `DataValue` — kiểu một ô dữ liệu (`string | number | boolean | null | undefined`).
+- `DataRecord` — một bản ghi, có `id` bắt buộc, còn lại là index signature `[field: string]: DataValue` vì cột lấy động từ Supabase.
 - `ConnectionConfig` — `{ url, publicKey, table }`, lưu trong `localStorage`.
 - `SortField`/`SortDirection` — một quy tắc sắp xếp (cột + hướng).
-- `ContractModuleConfig` — khai báo một module ở **cấp module**: `id`, `label`, `storageKey` (khoá localStorage riêng), `defaultUrl`/`defaultTable` (kết nối Supabase mặc định). Không còn danh sách cột hay cấu hình tổng hợp nào ở đây — tất cả đọc động từ `cf_field_config`.
+- `DataModuleConfig` — khai báo một module ở **cấp module**: `id`, `label`, `storageKey` (khoá localStorage riêng), `defaultUrl`/`defaultTable` (kết nối Supabase mặc định). Không còn danh sách cột hay cấu hình tổng hợp nào ở đây — tất cả đọc động từ `cf_field_config`.
 
 ### Khai báo cấu hình cột (`lib/types/field-config.ts`)
 
 Kiểu dữ liệu cho hệ thống cấu hình cột **động**, đọc từ bảng Supabase `cf_field_config`:
 
 - `FieldType` — union 11 giá trị: `Text`, `LongText`, `Numeric`, `Percent`, `SingleSelectWithoutOther`, `SingleSelectWithOther`, `MultiSelectWithoutOther`, `MultiSelectWithOther`, `Date`, `DateTime`, `Currency`.
-- `FilterType` — union 5 giá trị chữ thường (`"date" | "numeric" | "select" | "text" | "none"`) — `cf_field_config` lưu PascalCase, `field-config-service.ts` chuyển chữ thường lúc parse. `"none"` nghĩa là field không áp dụng bộ lọc nào (bị loại khỏi `filterFields` ngay ở `ContractManager`).
+- `FilterType` — union 5 giá trị chữ thường (`"date" | "numeric" | "select" | "text" | "none"`) — `cf_field_config` lưu PascalCase, `field-config-service.ts` chuyển chữ thường lúc parse. `"none"` nghĩa là field không áp dụng bộ lọc nào (bị loại khỏi `filterFields` ngay ở `DataViewManager`).
 - `FieldConfigRow` — raw shape trả về từ PostgREST, khớp đúng tên cột thật của `cf_field_config`, gồm cả `DefaultSortOrder` (`[STT, hướng]`, hướng `0 = asc`/`1 = desc`) và `DefaultRowGroupOrder` (số nguyên đơn, cấp nhóm dòng).
 - `FieldConfig` — shape runtime đã parse (`field, label, type, defaultDisplay, suggestOptions, filterKind, columnWidth, customStyle, orderIndex, defaultSortPriority, defaultSortDirection, groupOrder`), dùng xuyên suốt UI.
 - Hàm predicate dùng chung: `isNumericType`, `isDateType`, `isMultiSelectType`, `isSelectType`, `allowsCustomValue` (field `...WithOther` cho gõ giá trị tự do ngoài `suggestOptions`, `...WithoutOther` thì không).
@@ -159,7 +159,7 @@ Một client REST tối giản, **không phụ thuộc SDK Supabase**, chỉ dù
 - `restBase(url)` — chuẩn hoá URL người dùng nhập (project URL hoặc URL REST đầy đủ) thành dạng `<project>/rest/v1`.
 - `requestHeaders(publicKey)` — header cố định cho mọi request: `apikey`, `Content-Type: application/json`, và `Prefer: return=representation` (yêu cầu Supabase trả lại bản ghi vừa tạo/sửa thay vì rỗng).
 - `request(url, options)` — wrapper `fetch` dùng chung: ném lỗi kèm nội dung response nếu status không `ok`, còn nếu body rỗng (trường hợp DELETE) thì trả về mảng rỗng thay vì lỗi parse JSON.
-- `createSupabaseRestClient<T = ContractRecord>(config)` — trả về object có 4 hàm ứng với 4 thao tác CRUD, đều thao tác trên một bảng (`config.table`), generic theo kiểu dòng trả về để dùng lại được cho cả bảng dữ liệu lẫn `cf_field_config` (xem `field-config-service.ts`):
+- `createSupabaseRestClient<T = DataRecord>(config)` — trả về object có 4 hàm ứng với 4 thao tác CRUD, đều thao tác trên một bảng (`config.table`), generic theo kiểu dòng trả về để dùng lại được cho cả bảng dữ liệu lẫn `cf_field_config` (xem `field-config-service.ts`):
   - `list(query?)` — `GET ?select=*`, nối thêm `query` (filter/order, vd. `"TableName=eq.x&order=DefaultFieldOrderIndex.asc"`) nếu có.
   - `create(payload)` — `POST` kèm `?select=*` để lấy lại bản ghi (và `id`) vừa tạo.
   - `update(id, payload)` — `PATCH ?id=eq.<id>&select=*`.
@@ -172,24 +172,24 @@ Toàn bộ phân quyền (ai được đọc/ghi cột nào) do **Row Level Secu
 - `loadFieldConfig(config, tableName)` — gọi `createSupabaseRestClient<FieldConfigRow>({ ...config, table: "cf_field_config" })`, lọc theo `TableName=eq.<tableName>&order=DefaultFieldOrderIndex.asc`, rồi map từng `FieldConfigRow` (PascalCase, đúng tên cột Supabase) sang `FieldConfig` (camelCase, dùng trong UI): `SuggestForSelect` (Postgres `text[]`, có thể `null`) → `suggestOptions: string[]` (mặc định `[]`), `FilterType` → `filterKind` chuyển chữ thường, `DefaultFieldColumnWidth`/`DefaultCustomStyleForColumn` → `columnWidth`/`customStyle` (giữ `null` nếu trống), `DefaultSortOrder` (`[STT, hướng]`) → `defaultSortPriority`/`defaultSortDirection`, `DefaultRowGroupOrder` → `groupOrder`, `Label` rỗng thì dùng tạm `FieldName`.
 - Dùng chung `ConnectionConfig` (URL/key) đã cấu hình sẵn cho module — `cf_field_config` nằm cùng project Supabase, chỉ khác tên bảng.
 
-### Tiện ích định dạng (`lib/utils/contract-format.ts`)
+### Tiện ích định dạng (`lib/utils/data-view-format.ts`)
 
 - `hasValue(value)` — coi `null`/`undefined`/chuỗi rỗng là "không có giá trị" (dùng để tô màu ô rỗng, so sánh khi sắp xếp...).
 - `columnWidthStyle(field)` — style CSS `width`/`min-width` theo `field.columnWidth`, áp cho cả `<th>` lẫn `<td>` để cột đồng bộ chiều rộng; `columnWidth = null` giữ hành vi tự co giãn theo nội dung.
 - `formatValue(value, config: FieldConfig)` — hiển thị ô dữ liệu theo `config.type`: `—` nếu rỗng, thêm hậu tố `đ` và định dạng số Việt Nam nếu `Currency`, nhân 100 và thêm `%` nếu `Percent`, định dạng `dd/mm/yyyy` nếu `Date`, thêm giờ `HH:mm` nếu `DateTime`, nối lại bằng `", "` nếu là `MultiSelect...` (giá trị lưu trong Supabase dạng chuỗi nối `;`), còn lại hiển thị nguyên văn.
 
-### Tiện ích sắp xếp (`lib/utils/contract-sort.ts`)
+### Tiện ích sắp xếp (`lib/utils/data-view-sort.ts`)
 
-Dùng chung giữa sort phẳng (`ContractManager`) và sort dòng lá trong từng nhóm (`contract-grouping.ts`):
+Dùng chung giữa sort phẳng (`DataViewManager`) và sort dòng lá trong từng nhóm (`data-view-grouping.ts`):
 
 - `compareValues(left, right, field)` — so sánh 2 giá trị ô theo kiểu field: cột số (`isNumericType`) so bằng phép trừ, còn lại `localeCompare` tiếng Việt (`numeric: true` để so đúng thứ tự chuỗi có số); giá trị rỗng luôn xuống cuối.
 - `sortRows(rows, sortFields, fieldConfigs)` — áp dụng lần lượt các cột trong `sortFields`, phần tử đầu có ưu tiên cao nhất (so cột đầu trước, bằng nhau mới xét cột sau).
 
-### Tiện ích bộ lọc (`lib/utils/contract-filters.ts`)
+### Tiện ích bộ lọc (`lib/utils/data-view-filters.ts`)
 
 Phục vụ panel bộ lọc ở tab Danh sách. **Kiểu lọc (`FilterType`) đọc thẳng từ `filterKind` của `FieldConfig`** (cột `FilterType` trong `cf_field_config`) — không suy luận từ dữ liệu.
 
-| `filterKind` | Điều khiển trong `ContractFilters.svelte` |
+| `filterKind` | Điều khiển trong `DataViewFilters.svelte` |
 | --- | --- |
 | `"date"` | Hai ô `<input type="date">` (từ/đến) |
 | `"numeric"` | Hai ô `<input type="number">` (từ/đến) |
@@ -205,16 +205,16 @@ Chi tiết từng hàm:
 - `isFilterActive`/`countActiveFilters` — xác định một cột có đang được lọc hay không (date/numeric xét cặp khoá `field::from`/`field::to` hoặc `field::min`/`field::max`; select xét mảng đã giải mã có phần tử hay không), rồi đếm số **cột** đang lọc để hiện lên nút "Xóa N bộ lọc".
 - `matchesFilters(row, filters, filterFields)` — hàm khớp lọc chính, `filterFields.every(...)`: một dòng phải thoả **tất cả** cột đang lọc mới được giữ lại (AND giữa các cột; trong một cột select thì các giá trị đã chọn kết hợp OR với các phần tử tách `;` trong ô).
 
-### Tiện ích nhóm dòng (`lib/utils/contract-grouping.ts`)
+### Tiện ích nhóm dòng (`lib/utils/data-view-grouping.ts`)
 
 Dựng cây nhóm dòng (row grouping / treeview) cho bảng danh sách, dựa trên `FieldConfig.groupOrder` (cột `DefaultRowGroupOrder` trong `cf_field_config`):
 
 - `groupFieldsFrom(fieldConfigs)` — lọc field có `groupOrder != null`, sắp tăng dần (số nhỏ = cấp nhóm ngoài cùng). Field kiểu MultiSelect bị loại khỏi nhóm (chỉ cảnh báo console, không throw) vì một dòng có thể thuộc nhiều giá trị cùng lúc — mơ hồ khi làm cấp nhóm.
-- `buildRowGroupTree(rows, groupFields, sortFields, fieldConfigs)` — dựng cây `GroupNode[]` đệ quy theo từng cấp field nhóm; không field nào tham gia nhóm thì trả về đúng 1 node `"leaf"` chứa toàn bộ dòng đã sort, để phía render (`ContractTable`) luôn có một cây hợp lệ, không cần rẽ nhánh có-nhóm/không-nhóm. Thứ tự các nhóm với nhau **cố định theo giá trị field nhóm** (dùng lại `compareValues`, nhóm rỗng luôn xuống cuối); `sortFields` chỉ áp dụng để sắp các dòng lá **bên trong** mỗi nhóm lá cuối cùng.
+- `buildRowGroupTree(rows, groupFields, sortFields, fieldConfigs)` — dựng cây `GroupNode[]` đệ quy theo từng cấp field nhóm; không field nào tham gia nhóm thì trả về đúng 1 node `"leaf"` chứa toàn bộ dòng đã sort, để phía render (`DataViewTable`) luôn có một cây hợp lệ, không cần rẽ nhánh có-nhóm/không-nhóm. Thứ tự các nhóm với nhau **cố định theo giá trị field nhóm** (dùng lại `compareValues`, nhóm rỗng luôn xuống cuối); `sortFields` chỉ áp dụng để sắp các dòng lá **bên trong** mỗi nhóm lá cuối cùng.
 
-### `features/contracts/ContractManager.svelte` — nơi giữ state và logic
+### `features/data-view/DataViewManager.svelte` — nơi giữ state và logic
 
-Component quan trọng nhất, nhận prop `module: ContractModuleConfig` rồi tự vận hành toàn bộ vòng đời của một bảng dữ liệu:
+Component quan trọng nhất, nhận prop `module: DataModuleConfig` rồi tự vận hành toàn bộ vòng đời của một bảng dữ liệu:
 
 **State chính:**
 `rows` (dữ liệu thô từ Supabase), `fieldConfigs` (cột hiện có, đọc từ `cf_field_config`), `sortFields`, `config` (kết nối, đọc từ `localStorage` theo `module.storageKey` lúc `onMount`), `filters` (cũng lưu/đọc `localStorage`, khoá riêng `${module.storageKey}:filters`), `showFilters`, `selectedRow` (dòng đang chọn trong bảng), `editRecord`/`formValues` (đang thêm/sửa), `deleteRecord` (đang chờ xác nhận xoá).
@@ -232,30 +232,30 @@ Component quan trọng nhất, nhận prop `module: ContractModuleConfig` rồi 
 - `toggleSort(field)` — bấm vào một cột sẽ luân phiên **tăng dần → giảm dần → tắt**; thứ tự các cột trong `sortFields` quyết định độ ưu tiên khi sắp nhiều cột.
 - `updateFilter`/`clearFilters` — cập nhật/xoá object `filters` theo khoá (khoá có thể là tên cột thẳng, hoặc `field::from`, `field::min`... tuỳ kiểu lọc).
 
-### `ContractTable.svelte` / `ContractTableGroupRows.svelte` — bảng danh sách
+### `DataViewTable.svelte` / `DataViewTableGroupRows.svelte` — bảng danh sách
 
-- **Chọn dòng để sửa, không có nút nổi theo từng dòng:** bấm một dòng để chọn (tô nền), bấm lại để bỏ chọn (`selectedRow`/`onSelectRow`). Nút "Sửa" thao tác trên dòng đang chọn nằm ở **thanh công cụ chung** phía trên bảng (`ContractManager.svelte`), không phải trong bảng — đơn giản hơn hẳn cách làm nút nổi `position: absolute` theo từng dòng của phiên bản trước.
+- **Chọn dòng để sửa, không có nút nổi theo từng dòng:** bấm một dòng để chọn (tô nền), bấm lại để bỏ chọn (`selectedRow`/`onSelectRow`). Nút "Sửa" thao tác trên dòng đang chọn nằm ở **thanh công cụ chung** phía trên bảng (`DataViewManager.svelte`), không phải trong bảng — đơn giản hơn hẳn cách làm nút nổi `position: absolute` theo từng dòng của phiên bản trước.
 - Header mỗi cột là một nút bấm để gọi `onToggleSort`, hiện mũi tên ↑/↓ kèm số thứ tự ưu tiên nếu đang sắp nhiều cột.
-- `ContractTable.svelte` chỉ vẽ khung bảng (header, các trạng thái rỗng/tải/lỗi) và giao việc vẽ thân bảng cho `ContractTableGroupRows.svelte`, component tự gọi đệ quy chính nó (`<svelte:self>`) để vẽ từng cấp của cây nhóm (`GroupNode[]`, từ `contract-grouping.ts`):
+- `DataViewTable.svelte` chỉ vẽ khung bảng (header, các trạng thái rỗng/tải/lỗi) và giao việc vẽ thân bảng cho `DataViewTableGroupRows.svelte`, component tự gọi đệ quy chính nó (`<svelte:self>`) để vẽ từng cấp của cây nhóm (`GroupNode[]`, từ `data-view-grouping.ts`):
   - Node `"group"` vẽ thành một dòng tiêu đề (nhãn cột + giá trị + số hồ sơ), bấm để thu gọn/mở rộng (`collapsedKeys`, chỉ tồn tại trong phiên — không lưu `localStorage`, mặc định mở hết); màu nền dòng nhóm đậm/nhạt dần theo độ sâu lồng nhau.
   - Node `"leaf"` vẽ các `<tr>` dữ liệu thật, tô nền khi trùng `selectedRow`.
   - Module không cấu hình `DefaultRowGroupOrder` nào (mặc định `null` hết) sẽ chỉ nhận đúng 1 node `"leaf"` — hiển thị y hệt một bảng phẳng, không có cột thu gọn nhóm.
 
-### `ContractFilters.svelte` — panel bộ lọc
+### `DataViewFilters.svelte` — panel bộ lọc
 
-Nhận `filterFields` (đã tính sẵn ở `ContractManager`) và render mỗi cột thành một **thẻ lọc rộng cố định**, xếp thành hàng ngang trong một container `overflow-x-auto` (cuộn ngang khi nhiều cột, thay vì đẩy nội dung xuống nhiều dòng). Bốn nhánh `{#if kind === ...}` tương ứng bảng kiểu lọc ở phần tiện ích bên trên; riêng nhánh `"select"` là danh sách nút bấm để bật/tắt từng lựa chọn (kiểu Slicer), tô nền màu khi đang được chọn.
+Nhận `filterFields` (đã tính sẵn ở `DataViewManager`) và render mỗi cột thành một **thẻ lọc rộng cố định**, xếp thành hàng ngang trong một container `overflow-x-auto` (cuộn ngang khi nhiều cột, thay vì đẩy nội dung xuống nhiều dòng). Bốn nhánh `{#if kind === ...}` tương ứng bảng kiểu lọc ở phần tiện ích bên trên; riêng nhánh `"select"` là danh sách nút bấm để bật/tắt từng lựa chọn (kiểu Slicer), tô nền màu khi đang được chọn.
 
-### `ContractFormModal.svelte` — modal thêm/sửa
+### `DataViewFormModal.svelte` — modal thêm/sửa
 
-Render **động** một `<label>` + ô nhập cho mỗi cột trong `visibleFields` (tức `fieldConfigs` trừ `id` — cột `id` không bao giờ cho sửa tay, hồ sơ mới lấy id tự động từ `ContractManager`). Loại ô nhập chọn theo `field.type`: `textarea` cho `LongText`, `SelectCombobox` cho mọi field `isSelectType` (đơn/nhiều, có/không cho gõ tự do tuỳ `allowsCustomValue`), `input type="date"`/`"datetime-local"` cho `Date`/`DateTime`, `type="number"` cho các cột số, còn lại là `text`. Tiêu đề modal hiện `"Sửa hồ sơ #<id>"` hoặc `"Thêm hồ sơ #<id>"` (id đã được tự gán sẵn) tuỳ theo có `editRecord` hay không; nút "Xóa hồ sơ" chỉ hiện khi đang sửa.
+Render **động** một `<label>` + ô nhập cho mỗi cột trong `visibleFields` (tức `fieldConfigs` trừ `id` — cột `id` không bao giờ cho sửa tay, hồ sơ mới lấy id tự động từ `DataViewManager`). Loại ô nhập chọn theo `field.type`: `textarea` cho `LongText`, `SelectCombobox` cho mọi field `isSelectType` (đơn/nhiều, có/không cho gõ tự do tuỳ `allowsCustomValue`), `input type="date"`/`"datetime-local"` cho `Date`/`DateTime`, `type="number"` cho các cột số, còn lại là `text`. Tiêu đề modal hiện `"Sửa hồ sơ #<id>"` hoặc `"Thêm hồ sơ #<id>"` (id đã được tự gán sẵn) tuỳ theo có `editRecord` hay không; nút "Xóa hồ sơ" chỉ hiện khi đang sửa.
 
 ### `StatCards.svelte` — thẻ số liệu tổng quan
 
-Hai thẻ tĩnh: tổng số hồ sơ và trạng thái đồng bộ — dữ liệu tính sẵn ở `ContractManager` và truyền vào qua props, component này không tự tính toán gì.
+Hai thẻ tĩnh: tổng số hồ sơ và trạng thái đồng bộ — dữ liệu tính sẵn ở `DataViewManager` và truyền vào qua props, component này không tự tính toán gì.
 
 ### `ConnectionSettingsPanel.svelte` — cấu hình kết nối
 
-Form nhập URL Supabase, public key (ô `type="password"` để tránh lộ khi ai đó nhìn màn hình), và tên bảng. Khi submit, `ContractManager.saveSettings()` sẽ ghi vào `localStorage` theo khoá riêng của từng module (`module.storageKey`) rồi tự chuyển sang tab Danh sách và tải lại dữ liệu — **thông tin này không bao giờ được đưa vào mã nguồn hay build**, chỉ tồn tại trên trình duyệt của người dùng.
+Form nhập URL Supabase, public key (ô `type="password"` để tránh lộ khi ai đó nhìn màn hình), và tên bảng. Khi submit, `DataViewManager.saveSettings()` sẽ ghi vào `localStorage` theo khoá riêng của từng module (`module.storageKey`) rồi tự chuyển sang tab Danh sách và tải lại dữ liệu — **thông tin này không bao giờ được đưa vào mã nguồn hay build**, chỉ tồn tại trên trình duyệt của người dùng.
 
 ## Cấu hình build & triển khai
 
@@ -283,7 +283,7 @@ Ba bảng trên Supabase điều khiển toàn bộ hành vi cột của mọi m
 | `Label` | `text` | ✅ | Nhãn tiếng Việt hiển thị cho người dùng; nếu để rỗng, UI dùng tạm `FieldName`. |
 | `DefaultDisplayField` | `boolean` | ✅ | `true` = hiện trong bảng danh sách (`displayFields`). Cột `id` của module thường đặt `false` — form vẫn luôn thấy mọi field trừ `id`. |
 | `FieldType` | `text` (FK → `cf_field_type.FieldType`) | ✅ | Một trong 11 giá trị — xem bảng danh mục bên dưới. Quyết định control nhập liệu, cách format hiển thị, và cột có phải kiểu số không. |
-| `FilterType` | `text` (FK → `cf_filter_type.FilterType`) | ✅ | Một trong 5 giá trị — xem bảng danh mục bên dưới. Quyết định loại điều khiển lọc render trong `ContractFilters`. |
+| `FilterType` | `text` (FK → `cf_filter_type.FilterType`) | ✅ | Một trong 5 giá trị — xem bảng danh mục bên dưới. Quyết định loại điều khiển lọc render trong `DataViewFilters`. |
 | `DefaultFieldColumnWidth` | `smallint`, null | | Chiều rộng cột cố định (px) trong bảng danh sách. `null` = tự co giãn theo nội dung. |
 | `DefaultCustomStyleForColumn` | `text`, null | | CSS inline thuần áp trực tiếp qua `style` của ô dữ liệu, vd. `"background-color:#dcfce7; color:#166534; font-weight:bold"` — **không phải** class Tailwind. |
 | `SuggestForSelect` | `text[]`, null | | Mảng Postgres thật (không phải chuỗi nối `;`) — danh sách gợi ý cho field kiểu select, giữ nguyên thứ tự cấu hình (nhiều field dùng thứ tự có ý nghĩa như quy trình xử lý, không phải bảng chữ cái). Bỏ trống/`null` nếu field không phải kiểu select. |
@@ -317,7 +317,7 @@ Ví dụ một dòng cấu hình đầy đủ (field tiền tệ, hiện trong b
 
 ### `cf_filter_type` — danh mục 5 giá trị hợp lệ của cột `FilterType`
 
-`Date`, `Numeric`, `Select`, `Text`, `None` (`None` = field không có ô lọc nào trong `ContractFilters`).
+`Date`, `Numeric`, `Select`, `Text`, `None` (`None` = field không có ô lọc nào trong `DataViewFilters`).
 
 `cf_field_type`/`cf_filter_type` chỉ dùng làm **ràng buộc khoá ngoại** phía Supabase (chống nhập sai chính tả khi thêm dòng cấu hình mới) — app front-end không truy vấn tới 2 bảng này, vì các union type `FieldType`/`FilterType` tương ứng đã khai báo sẵn phía TypeScript ([`src/lib/types/field-config.ts`](src/lib/types/field-config.ts)).
 
@@ -326,4 +326,4 @@ Ví dụ một dòng cấu hình đầy đủ (field tiền tệ, hiện trong b
 1. Tạo file cấu hình mới trong `src/lib/constants/modules/`, mô phỏng theo `sales-contracts.ts`: đặt `id`, `label`, `storageKey` riêng, `defaultUrl`/`defaultTable`.
 2. Thêm object đó vào mảng `MODULES` trong `src/lib/constants/modules/index.ts`.
 3. Thêm các dòng cấu hình cột tương ứng vào bảng `cf_field_config` trên Supabase (`TableName` = tên bảng dữ liệu của module đó).
-4. Không cần sửa gì thêm — `App.svelte`, `Sidebar`, `ContractManager` và toàn bộ UI đều đọc theo `MODULES`/`cf_field_config` một cách tổng quát.
+4. Không cần sửa gì thêm — `App.svelte`, `Sidebar`, `DataViewManager` và toàn bộ UI đều đọc theo `MODULES`/`cf_field_config` một cách tổng quát.

@@ -10,7 +10,7 @@
     isFilterActive,
     type ColumnFilters,
     type FilterField,
-  } from "$lib/utils/contract-filters";
+  } from "$lib/utils/data-view-filters";
 
   export let filterFields: FilterField[];
   export let filters: ColumnFilters;
