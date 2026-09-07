@@ -6,27 +6,17 @@
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
   import { loadFieldConfig } from "$lib/services/field-config-service";
-  import {
-    computeFilterFields,
-    countActiveFilters,
-    matchesFilters,
-    type ColumnFilters,
-  } from "$lib/utils/contract-filters";
   import { isNumericType, type FieldConfig } from "$lib/types/field-config";
-  import { sortRows } from "$lib/utils/contract-sort";
-  import { groupFieldsFrom, buildRowGroupTree } from "$lib/utils/contract-grouping";
   import type {
     ConnectionConfig,
     ContractModuleConfig,
     ContractRecord,
     ContractValue,
-    SortField,
   } from "$lib/types/contracts";
   import Button from "$lib/components/ui/Button.svelte";
   import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
   import StatCards from "./StatCards.svelte";
   import ContractTable from "./ContractTable.svelte";
-  import ContractFilters from "./ContractFilters.svelte";
   import ContractFormModal from "./ContractFormModal.svelte";
   import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
 
@@ -48,7 +38,6 @@
   // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
   let fieldConfigs: FieldConfig[] = [];
   let fieldConfigLoading = false;
-  let sortFields: SortField[] = [];
   let config: ConnectionConfig = {
     url: module.defaultUrl,
     publicKey: "",
@@ -66,11 +55,25 @@
   let saveError = "";
   let saving = false;
   let showFilters = true;
-  let filters: ColumnFilters = {};
-  // Chỉ ghi bộ lọc vào localStorage SAU khi đã đọc xong ở onMount, tránh việc ghi đè
-  // giá trị rỗng ban đầu lên bộ lọc đã lưu từ trước khi kịp đọc ra.
-  let filtersLoaded = false;
-  const filtersStorageKey = `${module.storageKey}:filters`;
+  let listContentReady = false;
+
+  // Trì hoãn việc mount ContractTable đúng 1 nhịp (setTimeout 0 — chạy sau khi trình duyệt đã
+  // kịp vẽ xong lượt cập nhật hiện tại, gồm cả trạng thái tab đang chọn) để bấm tab phản hồi
+  // ngay lập tức, còn phần dựng bảng (nặng: tính lại filter/sort/group + tạo DOM) hiện
+  // "Đang tải dữ liệu..." trước rồi mới chạy, giống trải nghiệm lần đầu vào trang.
+  function armListContent(): void {
+    listContentReady = false;
+    setTimeout(() => {
+      listContentReady = true;
+    }, 0);
+  }
+
+  function selectTab(tabId: "overview" | "list" | "settings"): void {
+    activeTab = tabId;
+    if (tabId === "list") armListContent();
+  }
+
+  if (activeTab === "list") armListContent();
 
   // Chỉ đọc cấu hình từ localStorage ở trình duyệt để tránh lỗi khi build tĩnh.
   onMount(() => {
@@ -80,43 +83,15 @@
         ...config,
         ...(JSON.parse(stored) as Partial<ConnectionConfig>),
       };
-    const storedFilters = localStorage.getItem(filtersStorageKey);
-    if (storedFilters) {
-      try {
-        filters = JSON.parse(storedFilters) as ColumnFilters;
-      } catch {
-        // Bỏ qua dữ liệu lỗi, giữ bộ lọc rỗng.
-      }
-    }
-    filtersLoaded = true;
     if (config.publicKey) {
       loadFieldConfigs();
       loadRows();
     }
   });
 
-  $: if (filtersLoaded) localStorage.setItem(filtersStorageKey, JSON.stringify(filters));
-
   // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true); form nhập liệu
   // vẫn luôn dùng toàn bộ fieldConfigs (trừ id) để không "giấu mất" field nào lúc sửa.
   $: displayFields = fieldConfigs.filter((field) => field.defaultDisplay);
-
-  // Bộ lọc do người dùng chọn/gõ theo từng cột đang có cấu hình (id không có ô lọc riêng,
-  // field có filterKind "none" — cấu hình FilterType = "None" trong cf_field_config — cũng vậy).
-  $: filterFields = computeFilterFields(
-    fieldConfigs.filter((field) => field.field !== "id" && field.filterKind !== "none"),
-    rows,
-    filters,
-  );
-  $: activeFilterCount = countActiveFilters(filters, filterFields);
-  $: filteredRows = rows.filter((row) => matchesFilters(row, filters, filterFields));
-  $: sortedRows = sortRows(filteredRows, sortFields, fieldConfigs);
-  // Field tham gia nhóm dòng (DefaultRowGroupOrder), theo đúng thứ tự cấp lồng nhau; cây nhóm
-  // dựng từ filteredRows (chưa sort phẳng) — sortFields chỉ có ý nghĩa sắp dòng lá TRONG mỗi
-  // nhóm (buildRowGroupTree tự gọi sortRows nội bộ ở từng nhóm lá), thứ tự các nhóm với nhau
-  // luôn cố định theo giá trị field nhóm, độc lập với sortFields.
-  $: groupFields = groupFieldsFrom(fieldConfigs);
-  $: groupTree = buildRowGroupTree(filteredRows, groupFields, sortFields, fieldConfigs);
   $: connected = Boolean(config.publicKey) && !notice;
   $: statusLabel = loading
     ? "Đang tải"
@@ -127,22 +102,12 @@
       : "Chưa kết nối";
   $: connectionLabel = connected ? `Đã kết nối · ${config.table}` : "Chưa kết nối";
 
-  // Sắp xếp mặc định đọc từ cf_field_config.DefaultSortOrder ([STT, hướng] trên từng field) —
-  // chỉ áp dụng khi người dùng chưa tự chọn sort nào (xem chỗ gọi ở loadFieldConfigs()).
-  function defaultSortFieldsFrom(configs: FieldConfig[]): SortField[] {
-    return configs
-      .filter((item) => item.defaultSortPriority != null)
-      .sort((a, b) => (a.defaultSortPriority ?? 0) - (b.defaultSortPriority ?? 0))
-      .map((item) => ({ field: item.field, direction: item.defaultSortDirection ?? "asc" }));
-  }
-
   // Tải cấu hình cột từ cf_field_config (TableName = module.defaultTable, xem
   // field-config-service.ts) — độc lập với loadRows(), gọi song song lúc kết nối sẵn sàng.
   async function loadFieldConfigs() {
     fieldConfigLoading = true;
     try {
       fieldConfigs = await loadFieldConfig(config, module.defaultTable);
-      if (sortFields.length === 0) sortFields = defaultSortFieldsFrom(fieldConfigs);
     } catch (error) {
       notice = `Không tải được cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
       fieldConfigs = [];
@@ -173,7 +138,7 @@
     config = { ...config, table: config.table.trim() || module.defaultTable };
     localStorage.setItem(module.storageKey, JSON.stringify(config));
     savedText = "Đã lưu trên trình duyệt này";
-    activeTab = "list";
+    selectTab("list");
     loadFieldConfigs();
     loadRows();
   }
@@ -211,14 +176,6 @@
 
   function requestDelete(record: ContractRecord | null | undefined): void {
     if (record) deleteRecord = record;
-  }
-
-  function updateFilter(key: string, value: string): void {
-    filters = { ...filters, [key]: value };
-  }
-
-  function clearFilters(): void {
-    filters = {};
   }
 
   // Chuẩn hóa chuỗi rỗng thành null và trường số thành number trước khi gửi API.
@@ -271,27 +228,12 @@
     }
   }
 
-  // Mỗi cột luân phiên: tăng dần → giảm dần → tắt; thứ tự bấm xác định độ ưu tiên.
-  function toggleSort(field: string): void {
-    const existing = sortFields.find((item) => item.field === field);
-    if (!existing) {
-      sortFields = [...sortFields, { field, direction: "asc" }];
-      return;
-    }
-
-    sortFields =
-      existing.direction === "asc"
-        ? sortFields.map((item) =>
-            item.field === field ? { ...item, direction: "desc" } : item,
-          )
-        : sortFields.filter((item) => item.field !== field);
-  }
 </script>
 
 <svelte:head><title>{module.label}</title></svelte:head>
 
 <section class="flex h-full min-h-0 flex-col overflow-hidden">
-  <div class="mt-2 mx-2 flex flex-wrap items-start justify-end gap-1">
+  <div class="mt-2 mx-2 flex flex-wrap items-start justify-end gap-2">
         <Button on:click={loadRows}>↻ Làm mới</Button>
         <Button disabled={!selectedRow} on:click={() => selectedRow && openEdit(selectedRow)}
           >✎ Sửa</Button
@@ -299,7 +241,7 @@
         <Button
           variant="primary"
           disabled={fieldConfigLoading || !fieldConfigs.length}
-          on:click={openCreate}>＋ Thêm hồ sơ</Button
+          on:click={openCreate}>＋ Thêm</Button
         >
   </div>
 
@@ -311,7 +253,7 @@
           <button
             type="button"
             class=""
-            on:click={() => (activeTab = tab.id)}
+            on:click={() => selectTab(tab.id)}
           >
             {tab.label}
           </button>
@@ -355,28 +297,21 @@
       <StatCards totalRows={rows.length} {statusLabel} />
     </div>
   {:else if activeTab === "list"}
-    <div class="flex h-0 min-h-0 flex-1 flex-col">
-      {#if showFilters}
-        <ContractFilters
-          {filterFields}
-          {filters}
-          activeCount={activeFilterCount}
-          onChange={updateFilter}
-          onClear={clearFilters}
-        />
-      {/if}
+    {#if listContentReady}
       <ContractTable
         fields={displayFields}
-        rows={sortedRows}
-        {groupTree}
-        {sortFields}
+        {fieldConfigs}
+        {rows}
         loading={loading || fieldConfigLoading}
         hasConnection={Boolean(config.publicKey)}
-        onToggleSort={toggleSort}
         {selectedRow}
         onSelectRow={(row) => (selectedRow = selectedRow === row ? null : row)}
+        {showFilters}
+        storageKey={module.storageKey}
       />
-    </div>
+    {:else}
+      <div class="px-5 py-16 text-center text-sm text-slate-500">Đang tải dữ liệu...</div>
+    {/if}
   {:else}
     <div class="mt-2">
       <ConnectionSettingsPanel {config} {savedText} onSubmit={saveSettings} />

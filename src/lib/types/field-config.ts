@@ -21,6 +21,8 @@ export type FieldType =
 // bị loại khỏi filterFields ngay ở ContractManager.svelte (không render thẻ lọc nào cho nó).
 export type FilterType = "date" | "numeric" | "select" | "text" | "none";
 
+export type SubtotalType = "sum" | "count" | "max" | "min" | "average" | "product";
+
 // Raw shape trả về từ PostgREST — khớp đúng tên cột thật trong cf_field_config.
 export interface FieldConfigRow {
   id: number;
@@ -39,6 +41,12 @@ export interface FieldConfigRow {
   // Số nguyên đơn (không phải tuple như DefaultSortOrder), giống DefaultFieldOrderIndex — số nhỏ
   // = cấp nhóm ngoài cùng, số lớn = cấp lồng bên trong. null = field không tham gia nhóm dòng.
   DefaultRowGroupOrder: number | null;
+  // FieldName của cột dữ liệu sẽ hiển thị nội dung dòng nhóm (group row) khi field này được dùng
+  // để group. null = chưa cấu hình, mặc định hiển thị ở cột dữ liệu đầu tiên.
+  DefaultPositionFieldNamShowGroup: string | null;
+  // Loại subtotal hiển thị ở ô của field này trên dòng nhóm — PascalCase (Sum/Count/Max/Min/
+  // Average/Product). null = không hiển thị subtotal cho field này.
+  Subtotal: string | null;
 }
 
 // Shape runtime đã parse, dùng xuyên suốt UI (form/bảng/filter).
@@ -55,6 +63,8 @@ export interface FieldConfig {
   defaultSortPriority: number | null;
   defaultSortDirection: "asc" | "desc" | null;
   groupOrder: number | null;
+  groupDisplayField: string | null;
+  subtotal: SubtotalType | null;
 }
 
 export function isNumericType(type: FieldType): boolean {

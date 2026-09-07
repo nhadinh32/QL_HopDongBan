@@ -6,6 +6,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import type { ContractRecord } from "$lib/types/contracts";
   import { isNumericType, type FieldConfig } from "$lib/types/field-config";
+  import type { ContractValue } from "$lib/types/contracts";
   import type { GroupNode } from "$lib/utils/contract-grouping";
 
   export let nodes: GroupNode[];
@@ -29,10 +30,18 @@
     if (level === 2) return "bg-slate-100 hover:bg-slate-200";
     return "bg-slate-50 hover:bg-slate-100";
   }
+
+  // "count" là số dòng thuần (không phải giá trị của cột) nên không áp định dạng Currency/Percent
+  // của field; các loại subtotal còn lại tái dùng formatValue để giữ định dạng theo field.type.
+  function formatSubtotal(value: ContractValue | number | null, field: FieldConfig): string {
+    if (field.subtotal === "count") return String(value ?? 0);
+    return formatValue(value as ContractValue, field);
+  }
 </script>
 
 {#each nodes as node (node.kind === 'group' ? node.key : 'leaf')}
   {#if node.kind === 'group'}
+    {@const hasTarget = fields.some((f) => f.field === node.field.groupDisplayField)}
     <tr
       class="cursor-pointer {groupRowClass(depth)}"
       on:click={() => onToggleCollapse(node.key)}
@@ -43,7 +52,7 @@
             variant="icon"
             ariaLabel={collapsedKeys.has(node.key) ? "Mở nhóm" : "Thu gọn nhóm"}
             title={collapsedKeys.has(node.key) ? "Mở nhóm" : "Thu gọn nhóm"}
-            extraClass="border-none rounded-none p-0"
+            extraClass="border-none rounded-none p-0 !h-6 !w-6"
             on:click={(event) => {
               event.stopPropagation();
               onToggleCollapse(node.key);
@@ -51,13 +60,20 @@
           >{collapsedKeys.has(node.key) ? "▶" : "▼"}</Button>
         </td>
       {/if}
-      <td
-        colspan={fields.length}
-        class="{cellBorder} px-2 py-1.5 text-left text-sm font-semibold text-slate-900"
-      >
-        {node.field.label}: {node.label}
-        <span class="ml-1 font-normal">({node.rowCount.toLocaleString("vi-VN")} hồ sơ)</span>
-      </td>
+      {#each fields as field (field.field)}
+        {#if field.field === node.field.groupDisplayField || (!hasTarget && field === fields[0])}
+          <td class="{cellBorder} px-2 py-0 text-left text-sm font-semibold text-slate-900">
+            {node.field.label}: {node.label}
+          </td>
+        {:else if field.subtotal != null}
+          <td
+            style={columnWidthStyle(field)}
+            class="{cellBorder} px-1 py-1 font-semibold {isNumericType(field.type) ? 'text-right tabular-nums' : ''}"
+          >{formatSubtotal(node.subtotals[field.field], field)}</td>
+        {:else}
+          <td class={cellBorder}></td>
+        {/if}
+      {/each}
     </tr>
     {#if !collapsedKeys.has(node.key)}
       <svelte:self

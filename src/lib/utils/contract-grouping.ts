@@ -18,6 +18,9 @@ export type GroupNode =
       key: string;
       children: GroupNode[];
       rowCount: number;
+      // Giá trị subtotal đã tính sẵn cho các field có FieldConfig.subtotal khác null, key =
+      // field.field. Tính trên toàn bộ dòng thuộc nhánh này (kể cả các cấp con lồng sâu hơn).
+      subtotals: Record<string, ContractValue | number | null>;
     }
   | { kind: "leaf"; rows: ContractRecord[] };
 
@@ -37,6 +40,41 @@ export function groupFieldsFrom(fieldConfigs: FieldConfig[]): FieldConfig[] {
       return true;
     })
     .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+}
+
+// Tính subtotal của 1 field trên tập dòng thuộc 1 nhóm. "count" luôn là tổng số dòng trong nhóm
+// (giống nhau cho mọi cột đặt count); các loại khác chỉ tính trên các dòng có giá trị (bỏ qua
+// dòng rỗng ở chính cột đó). max/min dùng lại compareValues (contract-sort.ts) để so sánh nhất
+// quán với cách sort hiện có, kể cả field kiểu Date/Text.
+function computeSubtotal(rows: ContractRecord[], field: FieldConfig): ContractValue | number | null {
+  if (field.subtotal === "count") return rows.length;
+  const values = rows.map((row) => row[field.field]).filter(hasValue);
+  if (!values.length) return null;
+  switch (field.subtotal) {
+    case "sum":
+      return values.reduce((acc: number, v) => acc + Number(v), 0);
+    case "average":
+      return values.reduce((acc: number, v) => acc + Number(v), 0) / values.length;
+    case "product":
+      return values.reduce((acc: number, v) => acc * Number(v), 1);
+    case "max":
+      return values.reduce((best, v) => (compareValues(v, best, field) > 0 ? v : best));
+    case "min":
+      return values.reduce((best, v) => (compareValues(v, best, field) < 0 ? v : best));
+    default:
+      return null;
+  }
+}
+
+function computeSubtotals(
+  rows: ContractRecord[],
+  fieldConfigs: FieldConfig[],
+): Record<string, ContractValue | number | null> {
+  const result: Record<string, ContractValue | number | null> = {};
+  for (const field of fieldConfigs) {
+    if (field.subtotal != null) result[field.field] = computeSubtotal(rows, field);
+  }
+  return result;
 }
 
 // Không field nào tham gia nhóm → trả về cây có đúng 1 node "leaf" chứa toàn bộ dòng (đã sort),
@@ -100,6 +138,7 @@ function buildLevel(
       key: nodeKey,
       children,
       rowCount: groupRows.length,
+      subtotals: computeSubtotals(groupRows, fieldConfigs),
     };
   });
 }

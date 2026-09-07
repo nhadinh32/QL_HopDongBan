@@ -5,21 +5,109 @@
   //
   // Chọn dòng để sửa: bấm 1 dòng để chọn (tô nền), bấm lại để bỏ chọn — nút "Sửa" thao tác trên
   // dòng đang chọn nằm ở thanh công cụ chung (ContractManager.svelte), không phải trong bảng.
+  import { onMount } from "svelte";
   import { columnWidthStyle } from "$lib/utils/contract-format";
   import ContractTableGroupRows from "./ContractTableGroupRows.svelte";
+  import ContractFilters from "./ContractFilters.svelte";
   import type { ContractRecord, SortField } from "$lib/types/contracts";
   import type { FieldConfig } from "$lib/types/field-config";
-  import type { GroupNode } from "$lib/utils/contract-grouping";
+  import { groupFieldsFrom, buildRowGroupTree } from "$lib/utils/contract-grouping";
+  import { sortRows } from "$lib/utils/contract-sort";
+  import {
+    computeFilterFields,
+    countActiveFilters,
+    matchesFilters,
+    type ColumnFilters,
+  } from "$lib/utils/contract-filters";
 
   export let fields: FieldConfig[];
+  export let fieldConfigs: FieldConfig[];
   export let rows: ContractRecord[];
-  export let groupTree: GroupNode[] = [];
-  export let sortFields: SortField[];
   export let loading: boolean;
   export let hasConnection: boolean;
-  export let onToggleSort: (field: string) => void;
   export let selectedRow: ContractRecord | null;
   export let onSelectRow: (row: ContractRecord) => void;
+  export let showFilters: boolean;
+  export let storageKey: string;
+
+  let sortFields: SortField[] = [];
+
+  // Sắp xếp mặc định đọc từ cf_field_config.DefaultSortOrder ([STT, hướng] trên từng field) —
+  // chỉ áp dụng khi người dùng chưa tự chọn sort nào.
+  function defaultSortFieldsFrom(configs: FieldConfig[]): SortField[] {
+    return configs
+      .filter((item) => item.defaultSortPriority != null)
+      .sort((a, b) => (a.defaultSortPriority ?? 0) - (b.defaultSortPriority ?? 0))
+      .map((item) => ({ field: item.field, direction: item.defaultSortDirection ?? "asc" }));
+  }
+
+  // Chỉ áp sort mặc định đúng 1 lần mỗi khi fieldConfigs THỰC SỰ được tải mới (đổi tham chiếu
+  // mảng) — không phải mỗi khi sortFields rỗng trở lại do người dùng tự bấm tắt hết sort.
+  let lastFieldConfigs: FieldConfig[] | null = null;
+  $: if (fieldConfigs !== lastFieldConfigs) {
+    lastFieldConfigs = fieldConfigs;
+    if (sortFields.length === 0) sortFields = defaultSortFieldsFrom(fieldConfigs);
+  }
+
+  // Mỗi cột luân phiên: tăng dần → giảm dần → tắt; thứ tự bấm xác định độ ưu tiên.
+  function toggleSort(field: string): void {
+    const existing = sortFields.find((item) => item.field === field);
+    if (!existing) {
+      sortFields = [...sortFields, { field, direction: "asc" }];
+      return;
+    }
+    sortFields =
+      existing.direction === "asc"
+        ? sortFields.map((item) => (item.field === field ? { ...item, direction: "desc" } : item))
+        : sortFields.filter((item) => item.field !== field);
+  }
+
+  // Ghép hậu tố ":filters" ngay tại đây — quy ước đặt tên key lưu bộ lọc thuộc về ContractTable,
+  // ContractManager chỉ cần biết storageKey gốc (dùng chung với việc lưu ConnectionConfig).
+  const filtersStorageKey = `${storageKey}:filters`;
+  let filters: ColumnFilters = {};
+  // Chỉ ghi bộ lọc vào localStorage SAU khi đã đọc xong ở onMount, tránh việc ghi đè
+  // giá trị rỗng ban đầu lên bộ lọc đã lưu từ trước khi kịp đọc ra.
+  let filtersLoaded = false;
+
+  onMount(() => {
+    const stored = localStorage.getItem(filtersStorageKey);
+    if (stored) {
+      try {
+        filters = JSON.parse(stored) as ColumnFilters;
+      } catch {
+        // Bỏ qua dữ liệu lỗi, giữ bộ lọc rỗng.
+      }
+    }
+    filtersLoaded = true;
+  });
+
+  $: if (filtersLoaded) localStorage.setItem(filtersStorageKey, JSON.stringify(filters));
+
+  // Bộ lọc do người dùng chọn/gõ theo từng cột đang có cấu hình (id không có ô lọc riêng,
+  // field có filterKind "none" — cấu hình FilterType = "None" trong cf_field_config — cũng vậy).
+  $: filterFields = computeFilterFields(
+    fieldConfigs.filter((field) => field.field !== "id" && field.filterKind !== "none"),
+    rows,
+    filters,
+  );
+  $: activeFilterCount = countActiveFilters(filters, filterFields);
+  $: filteredRows = rows.filter((row) => matchesFilters(row, filters, filterFields));
+  $: sortedRows = sortRows(filteredRows, sortFields, fieldConfigs);
+  // Field tham gia nhóm dòng (DefaultRowGroupOrder), theo đúng thứ tự cấp lồng nhau; cây nhóm
+  // dựng từ filteredRows (chưa sort phẳng) — sortFields chỉ có ý nghĩa sắp dòng lá TRONG mỗi
+  // nhóm (buildRowGroupTree tự gọi sortRows nội bộ ở từng nhóm lá), thứ tự các nhóm với nhau
+  // luôn cố định theo giá trị field nhóm, độc lập với sortFields.
+  $: groupFields = groupFieldsFrom(fieldConfigs);
+  $: groupTree = buildRowGroupTree(filteredRows, groupFields, sortFields, fieldConfigs);
+
+  function updateFilter(key: string, value: string): void {
+    filters = { ...filters, [key]: value };
+  }
+
+  function clearFilters(): void {
+    filters = {};
+  }
 
   $: hasGroupColumn = groupTree.some((node) => node.kind === "group");
 
@@ -45,53 +133,64 @@
   }
 </script>
 
-<div class="flex h-0 min-h-0 flex-1 flex-col rounded bg-white" role="presentation">
-  {#if loading}
-    <div class={emptyStateClass}>Đang tải dữ liệu...</div>
-  {:else if !hasConnection}
-    <div class={emptyStateClass}>
-      Hãy mở mục <b class="font-semibold text-slate-700">Cài đặt kết nối</b> để nhập thông tin Supabase.
-    </div>
-  {:else if !rows.length}
-    <div class={emptyStateClass}>Chưa có dữ liệu trong bảng này.</div>
-  {:else}
-    <div class="h-0 min-h-0 flex-1 overflow-auto overscroll-contain">
-      <table class="w-full border-separate border-spacing-0 text-sm">
-        <thead class={headerCellClass}>
-          <tr>
-            {#if hasGroupColumn}
-              <th class={headerCellClass} aria-label="Thu gọn nhóm"></th>
-            {/if}
-            {#each fields as field (field.field)}
-              <th style={columnWidthStyle(field)} class={headerCellClass}>
-                <button
-                  type="button"
-                  class="inline-flex w-full items-center gap-1 text-inherit hover:text-white justify-center"
-                  on:click={() => onToggleSort(field.field)}
-                  title="Bấm để chuyển: tăng dần, giảm dần, tắt"
-                  >{field.label}{#each sortFields as item, index}{#if item.field === field.field}<span
-                        class="text-primary-300"
-                        >{item.direction === "asc"
-                          ? "↑"
-                          : "↓"}{sortFields.length > 1 ? index + 1 : ""}</span
-                      >{/if}{/each}</button
-                >
-              </th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          <ContractTableGroupRows
-            nodes={groupTree}
-            {fields}
-            showCollapseColumn={hasGroupColumn}
-            {collapsedKeys}
-            onToggleCollapse={toggleCollapse}
-            {selectedRow}
-            {onRowClick}
-          />
-        </tbody>
-      </table>
-    </div>
+<div class="flex h-0 min-h-0 flex-1 flex-col">
+  {#if showFilters}
+    <ContractFilters
+      {filterFields}
+      {filters}
+      activeCount={activeFilterCount}
+      onChange={updateFilter}
+      onClear={clearFilters}
+    />
   {/if}
+  <div class="flex h-0 min-h-0 flex-1 flex-col rounded bg-white" role="presentation">
+    {#if loading}
+      <div class={emptyStateClass}>Đang tải dữ liệu...</div>
+    {:else if !hasConnection}
+      <div class={emptyStateClass}>
+        Hãy mở mục <b class="font-semibold text-slate-700">Cài đặt kết nối</b> để nhập thông tin Supabase.
+      </div>
+    {:else if !sortedRows.length}
+      <div class={emptyStateClass}>Chưa có dữ liệu trong bảng này.</div>
+    {:else}
+      <div class="h-0 min-h-0 flex-1 overflow-auto overscroll-contain">
+        <table class="w-full border-separate border-spacing-0 text-sm">
+          <thead class={headerCellClass}>
+            <tr>
+              {#if hasGroupColumn}
+                <th class={headerCellClass} aria-label="Thu gọn nhóm"></th>
+              {/if}
+              {#each fields as field (field.field)}
+                <th style={columnWidthStyle(field)} class={headerCellClass}>
+                  <button
+                    type="button"
+                    class="inline-flex w-full items-center gap-1 text-inherit hover:text-white justify-center"
+                    on:click={() => toggleSort(field.field)}
+                    title="Bấm để chuyển: tăng dần, giảm dần, tắt"
+                    >{field.label}{#each sortFields as item, index}{#if item.field === field.field}<span
+                          class="text-primary-300"
+                          >{item.direction === "asc"
+                            ? "↑"
+                            : "↓"}{sortFields.length > 1 ? index + 1 : ""}</span
+                        >{/if}{/each}</button
+                  >
+                </th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            <ContractTableGroupRows
+              nodes={groupTree}
+              {fields}
+              showCollapseColumn={hasGroupColumn}
+              {collapsedKeys}
+              onToggleCollapse={toggleCollapse}
+              {selectedRow}
+              {onRowClick}
+            />
+          </tbody>
+        </table>
+      </div>
+    {/if}
+  </div>
 </div>

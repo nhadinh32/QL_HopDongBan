@@ -1,5 +1,5 @@
 import type { ConnectionConfig } from "$lib/types/contracts";
-import type { FieldConfig, FieldConfigRow, FilterType } from "$lib/types/field-config";
+import type { FieldConfig, FieldConfigRow, FilterType, SubtotalType } from "$lib/types/field-config";
 import { createSupabaseRestClient } from "./supabase-rest";
 
 // Bảng cấu hình dùng chung cho mọi module — không phải bảng dữ liệu của module nào cả,
@@ -21,6 +21,24 @@ function toFilterType(value: string): FilterType {
   return "text";
 }
 
+// cf_field_config lưu Subtotal dạng PascalCase (Sum/Count/Max/Min/Average/Product), null = không
+// subtotal. Giá trị lạ (cấu hình sai) chỉ cảnh báo console + coi như null, không throw.
+function toSubtotalType(value: string | null): SubtotalType | null {
+  if (!value) return null;
+  const lower = value.toLowerCase();
+  if (
+    lower === "sum" ||
+    lower === "count" ||
+    lower === "max" ||
+    lower === "min" ||
+    lower === "average" ||
+    lower === "product"
+  )
+    return lower;
+  console.warn(`cf_field_config: giá trị Subtotal không hợp lệ "${value}".`);
+  return null;
+}
+
 function toFieldConfig(row: FieldConfigRow): FieldConfig {
   const [priority, direction] = row.DefaultSortOrder ?? [];
   return {
@@ -36,6 +54,8 @@ function toFieldConfig(row: FieldConfigRow): FieldConfig {
     defaultSortPriority: priority ?? null,
     defaultSortDirection: priority == null ? null : direction === 1 ? "desc" : "asc",
     groupOrder: row.DefaultRowGroupOrder ?? null,
+    groupDisplayField: row.DefaultPositionFieldNamShowGroup ?? null,
+    subtotal: toSubtotalType(row.Subtotal),
   };
 }
 
