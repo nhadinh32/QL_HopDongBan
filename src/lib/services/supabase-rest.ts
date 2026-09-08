@@ -22,9 +22,11 @@ async function request<T>(url: string, options: RequestInit): Promise<T[]> {
 // Tạo client nhỏ, không phụ thuộc SDK, cho các thao tác CRUD trên một bảng Supabase.
 // Generic <T> để dùng lại được cho cả bảng dữ liệu (DataRecord, mặc định) lẫn bảng
 // cấu hình cf_field_config (FieldConfigRow, xem field-config-service.ts) — chỉ khác kiểu dòng trả về.
+// payload gõ theo Partial<T> (thay vì Record<string, DataValue>) để chấp nhận cả field kiểu mảng/tuple
+// như SuggestForSelect/DefaultSortOrder của FieldConfigRow, không riêng các kiểu vô hướng của DataRecord.
 export function createSupabaseRestClient<T = DataRecord>(config: ConnectionConfig) {
   const tableUrl = (): string => `${restBase(config.url)}/${encodeURIComponent(config.table)}`;
-  const options = (method: string, body?: Record<string, DataValue>): RequestInit => ({
+  const options = (method: string, body?: Partial<T>): RequestInit => ({
     method,
     headers: requestHeaders(config.publicKey),
     ...(body ? { body: JSON.stringify(body) } : {})
@@ -33,10 +35,8 @@ export function createSupabaseRestClient<T = DataRecord>(config: ConnectionConfi
   return {
     // query: chuỗi filter/order bổ sung nối sau ?select=*, vd. "TableName=eq.x&order=DefaultFieldOrderIndex.asc".
     list: (query?: string): Promise<T[]> => request<T>(`${tableUrl()}?select=*${query ? `&${query}` : ''}`, options('GET')),
-    create: (payload: Record<string, DataValue>): Promise<T[]> => request<T>(`${tableUrl()}?select=*`, options('POST', payload)),
-    update: (id: string | number, payload: Record<string, DataValue>): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}&select=*`, options('PATCH', payload)),
+    create: (payload: Partial<T>): Promise<T[]> => request<T>(`${tableUrl()}?select=*`, options('POST', payload)),
+    update: (id: string | number, payload: Partial<T>): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}&select=*`, options('PATCH', payload)),
     remove: (id: string | number): Promise<T[]> => request<T>(`${tableUrl()}?id=eq.${encodeURIComponent(id)}`, options('DELETE'))
   };
 }
-
-type DataValue = DataRecord[string];

@@ -92,3 +92,37 @@ export function isSelectType(type: FieldType): boolean {
 export function allowsCustomValue(type: FieldType): boolean {
   return type === "SingleSelectWithOther" || type === "MultiSelectWithOther";
 }
+
+// Danh mục nhãn tiếng Việt cho tab "Cấu hình" (FieldConfigFormModal) — tránh bắt người dùng
+// gõ tay các chuỗi PascalCase/chữ thường kỹ thuật khi thêm/sửa cột trong cf_field_config.
+export const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
+  { value: "Text", label: "Văn bản ngắn" },
+  { value: "LongText", label: "Văn bản dài" },
+  { value: "Numeric", label: "Số" },
+  { value: "Percent", label: "Phần trăm" },
+  { value: "Currency", label: "Tiền tệ" },
+  { value: "Date", label: "Ngày" },
+  { value: "DateTime", label: "Ngày giờ" },
+  { value: "SingleSelectWithoutOther", label: "Chọn 1 (danh sách cố định)" },
+  { value: "SingleSelectWithOther", label: "Chọn 1 (cho thêm tự do)" },
+  { value: "MultiSelectWithoutOther", label: "Chọn nhiều (danh sách cố định)" },
+  { value: "MultiSelectWithOther", label: "Chọn nhiều (cho thêm tự do)" },
+];
+
+export const FILTER_TYPE_OPTIONS: { value: FilterType; label: string }[] = [
+  { value: "text", label: "Tìm theo chuỗi" },
+  { value: "numeric", label: "Theo khoảng số" },
+  { value: "date", label: "Theo khoảng ngày" },
+  { value: "select", label: "Chọn nhiều (slicer)" },
+  { value: "none", label: "Không lọc" },
+];
+
+export const SUBTOTAL_TYPE_OPTIONS: { value: SubtotalType | null; label: string }[] = [
+  { value: null, label: "Không tính" },
+  { value: "sum", label: "Tổng" },
+  { value: "count", label: "Đếm số dòng" },
+  { value: "average", label: "Trung bình" },
+  { value: "max", label: "Giá trị lớn nhất" },
+  { value: "min", label: "Giá trị nhỏ nhất" },
+  { value: "product", label: "Tích" },
+];
