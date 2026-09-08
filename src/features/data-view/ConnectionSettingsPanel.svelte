@@ -6,20 +6,9 @@
   export let config: ConnectionConfig;
   export let savedText: string;
   export let onSubmit: () => void;
-  export let onBack: (() => void) | undefined = undefined;
-
 </script>
 
 <section class="max-w-2xl">
-  {#if onBack}
-    <button
-      type="button"
-      class="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800"
-      on:click={onBack}
-    >
-      ← Quay lại danh sách
-    </button>
-  {/if}
   <div>
     <h2 class="text-2xl font-semibold text-slate-900">Cài đặt kết nối</h2>
     <p class="mt-0.5 text-sm text-slate-500">Thông tin được lưu trên trình duyệt này.</p>

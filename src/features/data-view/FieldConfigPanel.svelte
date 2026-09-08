@@ -11,6 +11,7 @@
 
   export let rows: FieldConfigRow[];
   export let loading: boolean;
+  export let viewLabel: string;
   export let onCreate: () => void;
   export let onEdit: (row: FieldConfigRow) => void;
   export let onDelete: (row: FieldConfigRow) => void;
@@ -30,7 +31,7 @@
 <section class="flex h-full min-h-0 flex-col overflow-hidden">
   <div class="mt-2 mx-2 flex flex-wrap items-start justify-between gap-2">
     <div>
-      <h2 class="text-lg font-semibold text-slate-900">Cấu hình cột dữ liệu</h2>
+      <h2 class="text-lg font-semibold text-slate-900">Cấu hình cột dữ liệu — view "{viewLabel}"</h2>
       <p class="mt-0.5 text-sm text-slate-500">
         Thêm/sửa/xóa cột hiển thị và đổi thứ tự — áp dụng ngay cho tab Danh sách, không cần tải lại
         trang.
@@ -43,7 +44,7 @@
     {#if loading}
       <div class={emptyStateClass}>Đang tải cấu hình...</div>
     {:else if !rows.length}
-      <div class={emptyStateClass}>Chưa có cột nào được cấu hình cho bảng này.</div>
+      <div class={emptyStateClass}>Chưa có cột nào được cấu hình cho view "{viewLabel}".</div>
     {:else}
       <table class="w-full border-separate border-spacing-0 text-sm">
         <thead>

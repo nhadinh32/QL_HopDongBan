@@ -18,6 +18,8 @@
   export let onClear: () => void;
   export let activeCount: number;
 
+  let collapsed = false;
+
   const cardClass = "w-40 shrink-0 rounded border border-slate-100 overflow-hidden bg-white shadow-xs";
   const cardHeaderClass =
     "flex items-center justify-between gap-2 border-b border-primary-100 px-2.5 py-1.5 bg-primary-900";
@@ -35,14 +37,33 @@
   }
 </script>
 
-<div class="mt-2 mx-2">
+<div class="m-2">
   <div class="flex items-center justify-between gap-3">
-    <h3 class="text-sm font-semibold text-primary-900">Bộ lọc</h3>
+    <button
+      type="button"
+      class="-m-1 flex items-center gap-1 rounded p-1 hover:bg-primary-100"
+      aria-label={collapsed ? "Hiện bộ lọc" : "Ẩn bộ lọc"}
+      title={collapsed ? "Hiện bộ lọc" : "Ẩn bộ lọc"}
+      on:click={() => (collapsed = !collapsed)}
+    >
+      <span class="text-sm font-semibold text-primary-900">Bộ lọc</span>
+      <svg
+        class="h-3.5 w-3.5 shrink-0 transition-transform {!collapsed ? '-rotate-180' : ''}"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
       <Button variant="ghost" extraClass="!text-red-500 text-xs !py-0.5" on:click={onClear}
         >Xóa {activeCount} bộ lọc</Button
       >
   </div>
-  <div class="mt-1 flex gap-1 overflow-x-auto pb-1">
+  <div class="mt-1 flex gap-1 overflow-x-auto pb-1" class:hidden={collapsed}>
     {#each filterFields as { field, label, kind, options } (field)}
       {#if kind === "select"}
         {@const selected = decodeSelectValues(filters[field])}
