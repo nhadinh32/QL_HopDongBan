@@ -67,7 +67,11 @@ src/
 │           └── DataViewFormModal.svelte # Modal thêm/sửa một hồ sơ
 └── features/data-view/
     ├── DataViewManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
-    └── ConnectionSettingsPanel.svelte # Form nhập URL/API key/tên bảng Supabase
+    ├── ConnectionSettingsPanel.svelte # Form nhập URL/API key/tên bảng Supabase
+    ├── FieldConfigTab.svelte        # "Nhạc trưởng" riêng cho tab "Cấu hình": state + toàn bộ CRUD View/cột, lắp ráp 3 component dưới
+    ├── FieldConfigViewList.svelte   # Sidebar danh sách View trong tab "Cấu hình": thêm/đổi tên/xóa/sắp xếp view
+    ├── FieldConfigPanel.svelte      # Bảng liệt kê cột của 1 view (tab "Cấu hình") — thêm/sửa/xóa/sắp xếp cột
+    └── FieldConfigFormModal.svelte  # Modal thêm/sửa MỘT cột cf_field_config, view luôn cố định theo view đang chọn
 ```
 
 ## Kiến trúc tổng quan
@@ -79,7 +83,7 @@ App.svelte
  └─ AppShell (sidebar dùng chung, đọc MODULES để sinh menu)
      └─ DataViewManager (mount lại mỗi khi đổi module, nhờ {#key activeModuleId})
          ├─ N tab view (mỗi ViewName trong cf_field_config = 1 tab) → DataViewFilters + DataViewTable → DataViewTableGroupRows
-         ├─ Tab "Cấu hình" → FieldConfigPanel + FieldConfigFormModal
+         ├─ Tab "Cấu hình" → FieldConfigTab (nhạc trưởng riêng) → layout 2 cột: FieldConfigViewList (danh sách View, trái) + FieldConfigPanel (cột của view đang chọn, phải) + FieldConfigFormModal
          ├─ Tab "Cài đặt"  → ConnectionSettingsPanel
          ├─ DataViewFormModal (thêm/sửa, hiện đè lên khi editRecord !== undefined)
          └─ ConfirmDialog (xác nhận xóa)
@@ -230,6 +234,25 @@ Component quan trọng nhất, nhận prop `module: DataModuleConfig` rồi tự
 - `saveRecord()` — chuẩn hoá `formValues` trước khi gửi: chuỗi rỗng/`undefined` → `null`, cột số → ép kiểu `Number`; gọi `update` nếu đang sửa, `create` nếu đang thêm; nếu sửa mà Supabase trả về mảng rỗng thì coi là lỗi quyền (RLS) hoặc sai `id`.
 - `toggleSort(field)` — bấm vào một cột sẽ luân phiên **tăng dần → giảm dần → tắt**; thứ tự các cột trong `sortFields` quyết định độ ưu tiên khi sắp nhiều cột.
 - `updateFilter`/`clearFilters` — cập nhật/xoá object `filters` theo khoá (khoá có thể là tên cột thẳng, hoặc `field::from`, `field::min`... tuỳ kiểu lọc).
+
+### Tab "Cấu hình" — sửa `cf_field_config` và quản lý View ngay trong UI
+
+Không cần vào Supabase Table Editor để thêm/sửa/xóa cột hay tổ chức lại View — tab "Cấu hình" cho làm mọi việc đó tại chỗ, đổi tab "Danh sách" ngay lập tức không cần tải lại trang.
+
+**`FieldConfigTab.svelte`** — "nhạc trưởng" riêng cho tab này, tách hẳn khỏi `DataViewManager.svelte` (vốn chỉ còn truyền 5 prop: `config`, `tableName` = `module.defaultTable`, `initialViewId` = view dữ liệu vừa xem trước khi bấm "Cấu hình", `onChanged` để báo `DataViewManager` tải lại `fieldConfigs` đã parse, `onError` để đẩy lỗi lên banner `notice` chung). Vì `DataViewManager` chỉ render component này bên trong nhánh `{#if activeTab === "config"}`, Svelte tự hủy/tạo mới mỗi khi rời/vào lại tab — state `configViewId` (view đang xem/sửa trong sidebar, độc lập với tab dữ liệu ngoài) nhờ vậy tự "reset" đúng ý mỗi lần vào lại mà không cần logic riêng. Giữ toàn bộ state (`fieldConfigRows`, `editFieldConfigRow`, `deleteFieldConfigRowTarget`...) và hàm nghiệp vụ CRUD View/cột, rồi lắp ráp 3 component hiển thị bên dưới.
+
+**Không có bảng `cf_view_config` riêng cho View** — `ViewName` (kiểu `[ViewID, ViewLabel]`) chỉ là 2 cột lưu lặp lại trên từng dòng `cf_field_config`; một View "tồn tại" đơn thuần vì có ít nhất 1 dòng cột trỏ tới `ViewID` đó. Vì vậy:
+
+- **`FieldConfigViewList.svelte`** (sidebar trái) — liệt kê View kèm số cột, cho **thêm/đổi tên/xóa/sắp xếp** View. Cả 4 thao tác đều quy về ghi hàng loạt lên các dòng `FieldConfigRow` liên quan (không có bảng/cột schema mới):
+  - *Thêm view* — không có "view rỗng": chỉ hỏi tên, sinh `ViewID` bằng slug hóa tên (bỏ dấu, nối gạch ngang, tự thêm hậu tố nếu trùng — xem `slugifyViewId()` ở `FieldConfigTab.svelte`), rồi mở luôn `FieldConfigFormModal` với view đã khóa sẵn để nhập cột đầu tiên.
+  - *Đổi tên* — `updateFieldConfigRow` song song (`Promise.all`) lên mọi dòng có `ViewName[0]` trùng, ghi `ViewName` mới.
+  - *Xóa* — `deleteFieldConfigRow` song song lên mọi dòng thuộc view đó (nút bị khóa nếu chỉ còn 1 view); `ConfirmDialog` (đặt ngay trong `FieldConfigViewList.svelte`, tự quản lý state xác nhận) nêu rõ số cột sẽ mất cấu hình, nhắc dữ liệu thật trong bảng module không bị ảnh hưởng.
+  - *Sắp xếp* (▲▼, không kéo-thả) — không có cột "thứ tự view" riêng, thứ tự tab suy ra từ `DefaultFieldOrderIndex` nhỏ nhất trong mỗi view; đổi chỗ 2 view liền kề nghĩa là gộp toàn bộ cột của 2 view, đánh số lại `DefaultFieldOrderIndex` liên tục theo khối (giữ nguyên thứ tự cột *trong* mỗi view, chỉ hoán đổi 2 khối).
+- **`FieldConfigPanel.svelte`** — bảng liệt kê cột (kỹ thuật/nhãn/kiểu/hiện trong bảng/lọc) của đúng 1 view đang chọn ở sidebar, kèm ▲▼ đổi `DefaultFieldOrderIndex` với cột liền kề. Cột đang chờ xóa (`deleteTarget`) bind 2 chiều với `FieldConfigTab` vì có 2 nơi có thể yêu cầu xóa 1 cột (nút "Xóa" trong bảng, và nút "Xóa" trong `FieldConfigFormModal` khi đang sửa) — `ConfirmDialog` render ngay trong `FieldConfigPanel.svelte`, dùng chung cho cả 2 lối vào.
+- **`FieldConfigFormModal.svelte`** — form thêm/sửa **một cột**, shape cố định theo `FieldConfigRow` (khác `DataViewFormModal` vốn render động theo `FieldConfig[]` bất kỳ). `viewId`/`viewLabel` luôn do `FieldConfigTab` truyền vào và hiển thị **read-only** — đổi view cho 1 cột không phải việc của form này, chỉ quản lý ở `FieldConfigViewList`.
+- **`field-config-service.ts`** có thêm 4 hàm CRUD làm việc trực tiếp trên `FieldConfigRow` thô (khác `loadFieldConfig()` đã parse sang `FieldConfig` dùng cho tab Danh sách): `loadFieldConfigRows`, `createFieldConfigRow`, `updateFieldConfigRow`, `deleteFieldConfigRow` — cả 4 dùng lại `createSupabaseRestClient<FieldConfigRow>` y hệt `loadFieldConfig()`.
+
+State đáng chú ý ở `DataViewManager.svelte`: `configViewId` — view đang xem/sửa **bên trong** tab "Cấu hình", tách biệt với `activeViewId` (view dữ liệu đang xem ở tab Danh sách) để đổi qua lại giữa các view ngay trong tab "Cấu hình" mà không cần bấm ra tab dữ liệu khác; khởi tạo bằng `activeViewId` mỗi lần mới vào tab.
 
 ### `DataViewTable.svelte` / `DataViewTableGroupRows.svelte` — bảng danh sách
 
