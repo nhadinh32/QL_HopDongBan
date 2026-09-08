@@ -15,6 +15,8 @@
   } from "$lib/services/field-config-service";
   import {
     isNumericType,
+    DEFAULT_VIEW_ID,
+    DEFAULT_VIEW_LABEL,
     type FieldConfig,
     type FieldConfigRow,
   } from "$lib/types/field-config";
@@ -38,14 +40,15 @@
   export let connected = false;
   export let connectionLabel = "Chưa kết nối";
 
-  // Ba tab ngang trong một module: danh sách (bảng) → cấu hình cột (cf_field_config) → cài
-  // đặt kết nối.
-  const tabs: { id: "list" | "config" | "settings"; label: string }[] = [
-    { id: "list", label: "Danh sách" },
-    { id: "config", label: "Cấu hình" },
-    { id: "settings", label: "Cài đặt" },
-  ];
-  let activeTab: "list" | "config" | "settings" = "list";
+  // Mỗi view (ViewName trong cf_field_config) là một tab; "config"/"settings" là 2 tab cố định
+  // còn lại luôn đứng cuối hàng tab.
+  function isViewTab(tabId: string): boolean {
+    return tabId !== "config" && tabId !== "settings";
+  }
+  let activeTab = DEFAULT_VIEW_ID;
+  // "View đang xem gần nhất" — đồng bộ mỗi khi activeTab là 1 view-tab, dùng để scope tab
+  // "Cấu hình" và lọc fieldConfigs cho DataViewTable kể cả khi đang đứng ở tab "Cấu hình"/"Cài đặt".
+  let activeViewId = DEFAULT_VIEW_ID;
   let rows: DataRecord[] = [];
   // Cấu hình cột đọc động từ cf_field_config (TableName = module.defaultTable) — nguồn duy
   // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
@@ -67,7 +70,6 @@
   let formValues: Record<string, string> = {};
   let saveError = "";
   let saving = false;
-  let showFilters = true;
   let listContentReady = false;
 
   // Danh sách cột THÔ (chưa parse, kèm id/TableName thật) dùng riêng cho tab "Cấu hình" —
@@ -90,13 +92,13 @@
     }, 0);
   }
 
-  function selectTab(tabId: "list" | "config" | "settings"): void {
+  function selectTab(tabId: string): void {
     activeTab = tabId;
-    if (tabId === "list") armListContent();
+    if (isViewTab(tabId)) armListContent();
     if (tabId === "config") loadFieldConfigRowsForEditor();
   }
 
-  if (activeTab === "list") armListContent();
+  if (isViewTab(activeTab)) armListContent();
 
   // Chỉ đọc cấu hình từ localStorage ở trình duyệt để tránh lỗi khi build tĩnh.
   onMount(() => {
@@ -125,9 +127,48 @@
     }
   });
 
-  // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true); form nhập liệu
-  // vẫn luôn dùng toàn bộ fieldConfigs (trừ id) để không "giấu mất" field nào lúc sửa.
-  $: displayFields = fieldConfigs.filter((field) => field.defaultDisplay);
+  // Danh sách view (mỗi view = 1 tab) suy ra từ fieldConfigs đã tải — trước khi tải xong,
+  // distinctViews rỗng nên fallback về 1 tab tạm dùng chính activeTab để hàng tab không bị thiếu.
+  $: distinctViews = fieldConfigs.reduce<{ id: string; label: string }[]>((acc, f) => {
+    if (!acc.some((v) => v.id === f.viewId)) acc.push({ id: f.viewId, label: f.viewLabel });
+    return acc;
+  }, []);
+  $: views = distinctViews.length ? distinctViews : [{ id: activeTab, label: DEFAULT_VIEW_LABEL }];
+  $: tabs = [
+    ...views,
+    { id: "config", label: "Cấu hình" },
+    { id: "settings", label: "Cài đặt" },
+  ];
+
+  // Nếu view đang chọn không còn tồn tại (xóa hết cột của view đó...), rơi về view đầu tiên.
+  $: if (
+    distinctViews.length &&
+    isViewTab(activeTab) &&
+    !distinctViews.some((v) => v.id === activeTab)
+  ) {
+    activeTab = distinctViews[0].id;
+  }
+  // Đồng bộ "view đang xem gần nhất" mỗi khi activeTab là 1 view-tab.
+  $: if (isViewTab(activeTab)) activeViewId = activeTab;
+
+  // Toàn bộ cột (kể cả không hiện trong bảng) CỦA RIÊNG view đang xem — nguồn filter/sort/group/
+  // style/width cho DataViewTable, khác với dùng chung fieldConfigs toàn module.
+  $: fieldConfigsForActiveView = fieldConfigs.filter((f) => f.viewId === activeViewId);
+  // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true) CỦA RIÊNG view đang xem.
+  $: displayFields = fieldConfigsForActiveView.filter((field) => field.defaultDisplay);
+
+  // Danh sách THÔ đã lọc theo view đang chọn — dùng cho tab "Cấu hình" và moveFieldConfigRow.
+  $: fieldConfigRowsForActiveView = fieldConfigRows.filter(
+    (r) => (r.ViewName?.[0] || DEFAULT_VIEW_ID) === activeViewId,
+  );
+
+  // Loại trùng theo FieldName (ưu tiên dòng xuất hiện trước) — dùng cho form Thêm/Sửa hồ sơ, vì
+  // trùng FieldName giữa nhiều view giờ là hợp lệ nhưng form sửa 1 hồ sơ chỉ cần hỏi 1 lần.
+  $: recordFormFields = fieldConfigs.reduce<FieldConfig[]>((acc, f) => {
+    if (!acc.some((x) => x.field === f.field)) acc.push(f);
+    return acc;
+  }, []);
+
   $: connected = Boolean(config.publicKey) && !notice;
   $: connectionLabel = connected
     ? `Đã kết nối · ${config.table}`
@@ -235,15 +276,15 @@
     row: FieldConfigRow,
     direction: "up" | "down",
   ) {
-    const index = fieldConfigRows.findIndex((item) => item.id === row.id);
+    const index = fieldConfigRowsForActiveView.findIndex((item) => item.id === row.id);
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (
       index === -1 ||
       targetIndex < 0 ||
-      targetIndex >= fieldConfigRows.length
+      targetIndex >= fieldConfigRowsForActiveView.length
     )
       return;
-    const target = fieldConfigRows[targetIndex];
+    const target = fieldConfigRowsForActiveView[targetIndex];
     try {
       await Promise.all([
         updateFieldConfigRow(config, row.id, {
@@ -281,7 +322,7 @@
     config = { ...config, table: config.table.trim() || module.defaultTable };
     localStorage.setItem(module.storageKey, JSON.stringify(config));
     savedText = "Đã lưu trên trình duyệt này";
-    selectTab("list");
+    selectTab(activeViewId);
     loadFieldConfigs();
     loadRows();
   }
@@ -326,7 +367,7 @@
     saving = true;
     saveError = "";
     const payload: Record<string, DataValue> = Object.fromEntries(
-      fieldConfigs
+      recordFormFields
         .filter((field) => field.field !== "id" || !editRecord)
         .map((field) => {
           const value = formValues[field.field];
@@ -395,27 +436,6 @@
             >
               {tab.label}
             </button>
-            {#if tab.id === "list"}
-              <Button
-                ariaLabel="Bộ lọc"
-                title="Bộ lọc"
-                variant="ghost"
-                extraClass="!m-0 !p-1 !px-1 hover:!bg-primary-100"
-                on:click={() => (showFilters = !showFilters)}
-              >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M4 5h16l-6 8v6l-4 2v-8z" />
-                </svg>
-              </Button>
-            {/if}
           </div>
         {/each}
       </nav>
@@ -443,19 +463,20 @@
     </div>
   {/if}
 
-  {#if activeTab === "list"}
+  {#if isViewTab(activeTab)}
     {#if listContentReady}
-      <DataViewTable
-        fields={displayFields}
-        {fieldConfigs}
-        {rows}
-        loading={loading || fieldConfigLoading}
-        hasConnection={Boolean(config.publicKey)}
-        {selectedRow}
-        onSelectRow={(row) => (selectedRow = selectedRow === row ? null : row)}
-        {showFilters}
-        storageKey={module.storageKey}
-      />
+      {#key activeTab}
+        <DataViewTable
+          fields={displayFields}
+          fieldConfigs={fieldConfigsForActiveView}
+          {rows}
+          loading={loading || fieldConfigLoading}
+          hasConnection={Boolean(config.publicKey)}
+          {selectedRow}
+          onSelectRow={(row) => (selectedRow = selectedRow === row ? null : row)}
+          storageKey={`${module.storageKey}:${activeViewId}`}
+        />
+      {/key}
     {:else}
       <div class="px-5 py-16 text-center text-sm text-slate-500">
         Đang tải dữ liệu...
@@ -463,8 +484,9 @@
     {/if}
   {:else if activeTab === "config"}
     <FieldConfigPanel
-      rows={fieldConfigRows}
+      rows={fieldConfigRowsForActiveView}
       loading={fieldConfigRowsLoading}
+      viewLabel={views.find((v) => v.id === activeViewId)?.label ?? DEFAULT_VIEW_LABEL}
       onCreate={openCreateFieldConfigRow}
       onEdit={openEditFieldConfigRow}
       onDelete={requestDeleteFieldConfigRow}
@@ -479,7 +501,7 @@
 
 {#if editRecord !== undefined}
   <DataViewFormModal
-    fields={fieldConfigs}
+    fields={recordFormFields}
     {editRecord}
     {formValues}
     {saveError}
@@ -504,7 +526,10 @@
   {@const currentFieldConfigRow = editFieldConfigRow}
   <FieldConfigFormModal
     row={currentFieldConfigRow}
-    existingFieldNames={fieldConfigRows.map((row) => row.FieldName)}
+    existingFieldNames={fieldConfigRowsForActiveView.map((row) => row.FieldName)}
+    existingViews={views.map((v) => ({ viewId: v.id, viewLabel: v.label }))}
+    initialViewId={activeViewId}
+    initialViewLabel={views.find((v) => v.id === activeViewId)?.label ?? DEFAULT_VIEW_LABEL}
     saveError={fieldConfigSaveError}
     saving={fieldConfigSaving}
     onClose={closeFieldConfigEdit}

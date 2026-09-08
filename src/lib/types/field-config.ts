@@ -23,6 +23,12 @@ export type FilterType = "date" | "numeric" | "select" | "text" | "none";
 
 export type SubtotalType = "sum" | "count" | "max" | "min" | "average" | "product";
 
+// Mã/nhãn view dùng khi một dòng cấu hình chưa gán ViewName (dữ liệu cũ) hoặc trước khi
+// fieldConfigs tải xong — nguồn duy nhất cho 2 giá trị này, tránh gõ tay chuỗi "default"/"Danh
+// sách" rải rác ở nhiều nơi (field-config-service.ts, DataViewManager.svelte).
+export const DEFAULT_VIEW_ID = "default";
+export const DEFAULT_VIEW_LABEL = "Danh sách";
+
 // Raw shape trả về từ PostgREST — khớp đúng tên cột thật trong cf_field_config.
 export interface FieldConfigRow {
   id: number;
@@ -47,6 +53,10 @@ export interface FieldConfigRow {
   // Loại subtotal hiển thị ở ô của field này trên dòng nhóm — PascalCase (Sum/Count/Max/Min/
   // Average/Product). null = không hiển thị subtotal cho field này.
   Subtotal: string | null;
+  // [ViewID, ViewLabel] — mảng 2 phần tử, cùng pattern với DefaultSortOrder. ViewID là mã view
+  // (dùng làm id tab + khoá storageKey riêng), ViewLabel là nhãn tab hiển thị. null = dòng cũ
+  // chưa gán view (field-config-service.ts fallback về DEFAULT_VIEW_ID/DEFAULT_VIEW_LABEL).
+  ViewName: [string, string] | null;
 }
 
 // Shape runtime đã parse, dùng xuyên suốt UI (form/bảng/filter).
@@ -65,6 +75,8 @@ export interface FieldConfig {
   groupOrder: number | null;
   groupDisplayField: string | null;
   subtotal: SubtotalType | null;
+  viewId: string;
+  viewLabel: string;
 }
 
 export function isNumericType(type: FieldType): boolean {

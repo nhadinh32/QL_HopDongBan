@@ -27,7 +27,6 @@
   export let hasConnection: boolean;
   export let selectedRow: DataRecord | null;
   export let onSelectRow: (row: DataRecord) => void;
-  export let showFilters: boolean;
   export let storageKey: string;
 
   let sortFields: SortField[] = [];
@@ -134,15 +133,13 @@
 </script>
 
 <div class="flex h-0 min-h-0 flex-1 flex-col">
-  {#if showFilters}
-    <DataViewFilters
-      {filterFields}
-      {filters}
-      activeCount={activeFilterCount}
-      onChange={updateFilter}
-      onClear={clearFilters}
-    />
-  {/if}
+  <DataViewFilters
+    {filterFields}
+    {filters}
+    activeCount={activeFilterCount}
+    onChange={updateFilter}
+    onClear={clearFilters}
+  />
   <div class="flex h-0 min-h-0 flex-1 flex-col rounded bg-white" role="presentation">
     {#if loading}
       <div class={emptyStateClass}>Đang tải dữ liệu...</div>

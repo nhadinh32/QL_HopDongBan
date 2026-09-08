@@ -5,6 +5,7 @@
   import Modal from "$lib/components/ui/Modal.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import SelectCombobox from "$lib/components/ui/SelectCombobox.svelte";
+  import { toFilterType, toSubtotalType } from "$lib/services/field-config-service";
   import {
     isSelectType,
     FIELD_TYPE_OPTIONS,
@@ -17,8 +18,13 @@
   } from "$lib/types/field-config";
 
   export let row: FieldConfigRow | null;
-  // Tên các cột khác đã cấu hình trong cùng module — dùng cho dropdown "cột hiện nội dung nhóm".
+  // Tên các cột khác đã cấu hình trong cùng view — dùng cho dropdown "cột hiện nội dung nhóm".
   export let existingFieldNames: string[];
+  // Toàn bộ view đã có của module — dùng cho dropdown chọn view bên dưới.
+  export let existingViews: { viewId: string; viewLabel: string }[];
+  // View đang xem gần nhất ở DataViewManager — dùng làm giá trị mặc định khi tạo cột mới.
+  export let initialViewId: string;
+  export let initialViewLabel: string;
   export let saveError: string;
   export let saving: boolean;
   export let onClose: () => void;
@@ -27,28 +33,16 @@
   ) => void;
   export let onDelete: (() => void) | undefined = undefined;
 
-  // FilterType/Subtotal lưu PascalCase trên Supabase nhưng TS union trong app là chữ thường
-  // (xem field-config-service.ts) — 2 hàm nhỏ này quy đổi qua lại chỉ để khởi tạo/lưu form.
-  function normalizeFilterType(value: string): FilterType {
-    const lower = value.toLowerCase();
-    return FILTER_TYPE_OPTIONS.some((item) => item.value === lower)
-      ? (lower as FilterType)
-      : "text";
-  }
-  function normalizeSubtotal(value: string | null): SubtotalType | null {
-    if (!value) return null;
-    const lower = value.toLowerCase();
-    return SUBTOTAL_TYPE_OPTIONS.some((item) => item.value === lower)
-      ? (lower as SubtotalType)
-      : null;
-  }
+  // FilterType/Subtotal lưu PascalCase trên Supabase nhưng TS union trong app là chữ thường —
+  // dùng lại đúng logic quy đổi của field-config-service.ts (toFilterType/toSubtotalType) khi
+  // khởi tạo form thay vì viết lại; chiều ngược lại (lưu) chỉ cần viết hoa chữ cái đầu.
   const toDbCase = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
 
   const isCreate = row === null;
   let fieldName = row?.FieldName ?? "";
   let label = row?.Label ?? "";
   let fieldType: FieldType = row?.FieldType ?? "Text";
-  let filterType: FilterType = normalizeFilterType(row?.FilterType ?? "text");
+  let filterType: FilterType = toFilterType(row?.FilterType ?? "text");
   let defaultDisplay = row?.DefaultDisplayField ?? true;
   let columnWidth = row?.DefaultFieldColumnWidth != null ? String(row.DefaultFieldColumnWidth) : "";
   let customStyle = row?.DefaultCustomStyleForColumn ?? "";
@@ -58,7 +52,12 @@
   let sortDirection: "asc" | "desc" = row?.DefaultSortOrder?.[1] === 1 ? "desc" : "asc";
   let groupOrder = row?.DefaultRowGroupOrder != null ? String(row.DefaultRowGroupOrder) : "";
   let groupDisplayField = row?.DefaultPositionFieldNamShowGroup ?? "";
-  let subtotal: SubtotalType | null = normalizeSubtotal(row?.Subtotal ?? null);
+  let subtotal: SubtotalType | null = toSubtotalType(row?.Subtotal ?? null);
+
+  const NEW_VIEW = "__new__";
+  let viewSelection = row?.ViewName?.[0] ?? initialViewId;
+  let newViewId = "";
+  let newViewLabel = "";
 
   $: groupDisplayFieldOptions = existingFieldNames.filter((name) => name !== fieldName);
 
@@ -68,6 +67,11 @@
 
   function handleSubmit(): void {
     const priority = toNumberOrNull(sortPriority);
+    const finalViewId = viewSelection === NEW_VIEW ? newViewId.trim() : viewSelection;
+    const finalViewLabel =
+      viewSelection === NEW_VIEW
+        ? newViewLabel.trim()
+        : (existingViews.find((v) => v.viewId === viewSelection)?.viewLabel ?? initialViewLabel);
     onSubmit({
       FieldName: fieldName.trim(),
       Label: label.trim(),
@@ -87,6 +91,7 @@
       DefaultRowGroupOrder: toNumberOrNull(groupOrder),
       DefaultPositionFieldNamShowGroup: groupDisplayField.trim() === "" ? null : groupDisplayField,
       Subtotal: subtotal ? toDbCase(subtotal) : null,
+      ViewName: [finalViewId, finalViewLabel],
     });
   }
 </script>
@@ -139,6 +144,34 @@
             <input type="checkbox" bind:checked={defaultDisplay} class="h-4 w-4" />
             Hiện trong bảng danh sách
           </label>
+          <label class="mb-4">
+            View (tab hiển thị)
+            <select class="mt-1.5" bind:value={viewSelection}>
+              {#each existingViews as v (v.viewId)}
+                <option value={v.viewId}>{v.viewLabel}</option>
+              {/each}
+              <option value={NEW_VIEW}>+ Tạo view mới…</option>
+            </select>
+          </label>
+          {#if viewSelection === NEW_VIEW}
+            <label class="mb-4">
+              Mã view (ViewID)
+              <input class="mt-1.5" bind:value={newViewId} required placeholder="vd. tai-chinh" />
+            </label>
+            <label class="mb-4">
+              Tên tab hiển thị (ViewLabel)
+              <input
+                class="mt-1.5"
+                bind:value={newViewLabel}
+                required
+                placeholder="vd. Tài chính"
+              />
+            </label>
+          {/if}
+          <p class="mb-4 -mt-2.5 text-xs text-slate-400 sm:col-span-2">
+            Chọn lại 1 tên cột kỹ thuật đã tồn tại ở view khác + đổi view = tạo bản sao cấu hình
+            riêng cho view mới (filter/sort/style độc lập), không phải "chuyển" cột sang view khác.
+          </p>
         </div>
 
         <!-- Bộ lọc -->

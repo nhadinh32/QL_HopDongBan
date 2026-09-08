@@ -78,7 +78,8 @@ src/
 App.svelte
  └─ AppShell (sidebar dùng chung, đọc MODULES để sinh menu)
      └─ DataViewManager (mount lại mỗi khi đổi module, nhờ {#key activeModuleId})
-         ├─ Tab "Danh sách" → DataViewFilters + DataViewTable → DataViewTableGroupRows
+         ├─ N tab view (mỗi ViewName trong cf_field_config = 1 tab) → DataViewFilters + DataViewTable → DataViewTableGroupRows
+         ├─ Tab "Cấu hình" → FieldConfigPanel + FieldConfigFormModal
          ├─ Tab "Cài đặt"  → ConnectionSettingsPanel
          ├─ DataViewFormModal (thêm/sửa, hiện đè lên khi editRecord !== undefined)
          └─ ConfirmDialog (xác nhận xóa)
@@ -90,8 +91,8 @@ App.svelte
 
 `DataViewManager` giữ hai danh sách cột, cả hai đều dẫn xuất từ `fieldConfigs: FieldConfig[]` (tải từ `cf_field_config` lúc `onMount`, xem `loadFieldConfigs()`):
 
-- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`), sắp theo `DefaultFieldOrderIndex`. Dùng cho form nhập liệu (`DataViewFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng.
-- `displayFields` — chỉ những cột có `DefaultDisplayField = true`, dùng cho bảng danh sách (`DataViewTable`).
+- `fieldConfigs` — toàn bộ cột đã cấu hình cho module (theo `TableName`, mọi view gộp lại), sắp theo `DefaultFieldOrderIndex`. `recordFormFields` (đã loại trùng theo `FieldName`) dẫn xuất từ đây, dùng cho form nhập liệu (`DataViewFormModal`) — sửa hồ sơ cần thấy đủ mọi field, kể cả field không hiện trong bảng hoặc chỉ thuộc view khác.
+- `fieldConfigsForActiveView` — chỉ những cột thuộc `ViewName`/view đang xem (`activeViewId`). `displayFields` (chỉ cột có `DefaultDisplayField = true`) dẫn xuất từ đây, dùng cho bảng danh sách (`DataViewTable`) của đúng tab-view đang mở — mỗi view có filter/sort/group/width/style riêng vì mỗi dòng `cf_field_config` tự mang các thuộc tính đó cho view của nó.
 
 Việc một cột thuộc kiểu nào (số/tiền tệ/phần trăm/văn bản dài/ngày/ngày giờ/select...) đọc thẳng từ cột `FieldType` của `cf_field_config` (xem `$lib/types/field-config.ts`), sort mặc định đọc từ `DefaultSortOrder`, và cấp nhóm dòng đọc từ `DefaultRowGroupOrder` — không có Set tên cột nào khai báo tay trong file module.
 
@@ -283,6 +284,7 @@ Ba bảng trên Supabase điều khiển toàn bộ hành vi cột của mọi m
 | `SuggestForSelect` | `text[]`, null | | Mảng Postgres thật (không phải chuỗi nối `;`) — danh sách gợi ý cho field kiểu select, giữ nguyên thứ tự cấu hình (nhiều field dùng thứ tự có ý nghĩa như quy trình xử lý, không phải bảng chữ cái). Bỏ trống/`null` nếu field không phải kiểu select. |
 | `DefaultSortOrder` | mảng 2 phần tử số nguyên (`[STT, hướng]`), null | | Sort mặc định khi mở bảng lần đầu (trước khi người dùng tự bấm sort): phần tử 1 = thứ tự ưu tiên (số nhỏ ưu tiên trước), phần tử 2 = hướng (`0 = asc`, `1 = desc`). `null` = field không tham gia sort mặc định. |
 | `DefaultRowGroupOrder` | `smallint`/`bigint`, null | | Cấp nhóm dòng (treeview) trong bảng danh sách — số nguyên đơn, **không phải tuple**. Số nhỏ = cấp nhóm ngoài cùng, số lớn = cấp lồng bên trong; `null` = field không tham gia nhóm dòng. Field kiểu MultiSelect bị bỏ qua dù có set giá trị này (ứng dụng chỉ cảnh báo console, không lỗi). |
+| `ViewName` | `text[]` (2 phần tử), null | | Mảng `[ViewID, ViewLabel]` — cùng pattern với `DefaultSortOrder`. `ViewID` (phần tử 1) là mã view, dùng làm id tab và nối vào `storageKey` riêng của view (`${module.storageKey}:${ViewID}`); `ViewLabel` (phần tử 2) là nhãn tab hiển thị. Mỗi view là một tab ngang riêng trên hàng tab chính (không phải tab con của "Danh sách"); mỗi dòng cấu hình (kể cả trùng `FieldName` nhưng khác `ViewName`) tự mang `FilterType`/`DefaultSortOrder`/`DefaultRowGroupOrder`/`DefaultFieldColumnWidth`/`DefaultCustomStyleForColumn`/`Subtotal`/`DefaultDisplayField`/`DefaultFieldOrderIndex` riêng cho view đó — đây là cách dùng có chủ đích để hiện cùng 1 cột với hành vi khác nhau ở 2 view. `null`/rỗng → coi như `["default", "Danh sách"]`. |
 
 Ví dụ một dòng cấu hình đầy đủ (field tiền tệ, hiện trong bảng, lọc theo khoảng số, sort ưu tiên 1 giảm dần, không nhóm):
 
@@ -299,7 +301,8 @@ Ví dụ một dòng cấu hình đầy đủ (field tiền tệ, hiện trong b
   "DefaultCustomStyleForColumn": null,
   "SuggestForSelect": null,
   "DefaultSortOrder": [1, 1],
-  "DefaultRowGroupOrder": null
+  "DefaultRowGroupOrder": null,
+  "ViewName": ["default", "Danh sách"]
 }
 ```
 

@@ -1,5 +1,12 @@
 import type { ConnectionConfig } from "$lib/types/data-view";
-import type { FieldConfig, FieldConfigRow, FilterType, SubtotalType } from "$lib/types/field-config";
+import {
+  DEFAULT_VIEW_ID,
+  DEFAULT_VIEW_LABEL,
+  type FieldConfig,
+  type FieldConfigRow,
+  type FilterType,
+  type SubtotalType,
+} from "$lib/types/field-config";
 import { createSupabaseRestClient } from "./supabase-rest";
 
 // Bảng cấu hình dùng chung cho mọi module — không phải bảng dữ liệu của module nào cả,
@@ -8,7 +15,8 @@ const FIELD_CONFIG_TABLE = "cf_field_config";
 
 // cf_field_config lưu FilterType dạng PascalCase (Date/Numeric/Select/Text/None); toàn bộ UI
 // (data-view-filters.ts, DataViewFilters.svelte) dùng union chữ thường có sẵn từ trước.
-function toFilterType(value: string): FilterType {
+// Export để FieldConfigFormModal.svelte tái dùng khi khởi tạo form sửa, tránh viết lại logic quy đổi.
+export function toFilterType(value: string): FilterType {
   const lower = value.toLowerCase();
   if (
     lower === "date" ||
@@ -23,7 +31,8 @@ function toFilterType(value: string): FilterType {
 
 // cf_field_config lưu Subtotal dạng PascalCase (Sum/Count/Max/Min/Average/Product), null = không
 // subtotal. Giá trị lạ (cấu hình sai) chỉ cảnh báo console + coi như null, không throw.
-function toSubtotalType(value: string | null): SubtotalType | null {
+// Export cùng lý do với toFilterType ở trên.
+export function toSubtotalType(value: string | null): SubtotalType | null {
   if (!value) return null;
   const lower = value.toLowerCase();
   if (
@@ -41,6 +50,7 @@ function toSubtotalType(value: string | null): SubtotalType | null {
 
 function toFieldConfig(row: FieldConfigRow): FieldConfig {
   const [priority, direction] = row.DefaultSortOrder ?? [];
+  const [viewId, viewLabel] = row.ViewName ?? [];
   return {
     field: row.FieldName,
     label: row.Label || row.FieldName,
@@ -56,6 +66,8 @@ function toFieldConfig(row: FieldConfigRow): FieldConfig {
     groupOrder: row.DefaultRowGroupOrder ?? null,
     groupDisplayField: row.DefaultPositionFieldNamShowGroup ?? null,
     subtotal: toSubtotalType(row.Subtotal),
+    viewId: viewId || DEFAULT_VIEW_ID,
+    viewLabel: viewLabel || DEFAULT_VIEW_LABEL,
   };
 }
 
