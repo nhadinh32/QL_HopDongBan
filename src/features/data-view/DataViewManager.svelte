@@ -13,7 +13,11 @@
     updateFieldConfigRow,
     deleteFieldConfigRow,
   } from "$lib/services/field-config-service";
-  import { isNumericType, type FieldConfig, type FieldConfigRow } from "$lib/types/field-config";
+  import {
+    isNumericType,
+    type FieldConfig,
+    type FieldConfigRow,
+  } from "$lib/types/field-config";
   import type {
     ConnectionConfig,
     DataModuleConfig,
@@ -22,7 +26,6 @@
   } from "$lib/types/data-view";
   import Button from "$lib/components/ui/Button.svelte";
   import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
-  import StatCards from "./StatCards.svelte";
   import DataViewTable from "$lib/components/ui/DataViewTable.svelte";
   import DataViewFormModal from "$lib/components/ui/DataViewFormModal.svelte";
   import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
@@ -35,15 +38,14 @@
   export let connected = false;
   export let connectionLabel = "Chưa kết nối";
 
-  // Bốn tab ngang trong một module: tổng quan (thống kê) → danh sách (bảng) → cấu hình cột
-  // (cf_field_config) → cài đặt kết nối.
-  const tabs: { id: "overview" | "list" | "config" | "settings"; label: string }[] = [
-    { id: "overview", label: "Tổng quan" },
+  // Ba tab ngang trong một module: danh sách (bảng) → cấu hình cột (cf_field_config) → cài
+  // đặt kết nối.
+  const tabs: { id: "list" | "config" | "settings"; label: string }[] = [
     { id: "list", label: "Danh sách" },
     { id: "config", label: "Cấu hình" },
     { id: "settings", label: "Cài đặt" },
   ];
-  let activeTab: "overview" | "list" | "config" | "settings" = "list";
+  let activeTab: "list" | "config" | "settings" = "list";
   let rows: DataRecord[] = [];
   // Cấu hình cột đọc động từ cf_field_config (TableName = module.defaultTable) — nguồn duy
   // nhất quyết định field nào tồn tại, thay cho module.defaultFields tĩnh trước đây.
@@ -88,7 +90,7 @@
     }, 0);
   }
 
-  function selectTab(tabId: "overview" | "list" | "config" | "settings"): void {
+  function selectTab(tabId: "list" | "config" | "settings"): void {
     activeTab = tabId;
     if (tabId === "list") armListContent();
     if (tabId === "config") loadFieldConfigRowsForEditor();
@@ -109,7 +111,11 @@
     // chia sẻ link tự động cấu hình kết nối. Đọc xong tự lưu lại localStorage và dọn sạch URL.
     const fromUrl = consumeConnectionConfigFromUrl();
     if (Object.keys(fromUrl).length > 0) {
-      config = { ...config, ...fromUrl, table: fromUrl.table?.trim() || config.table };
+      config = {
+        ...config,
+        ...fromUrl,
+        table: fromUrl.table?.trim() || config.table,
+      };
       localStorage.setItem(module.storageKey, JSON.stringify(config));
     }
 
@@ -123,14 +129,9 @@
   // vẫn luôn dùng toàn bộ fieldConfigs (trừ id) để không "giấu mất" field nào lúc sửa.
   $: displayFields = fieldConfigs.filter((field) => field.defaultDisplay);
   $: connected = Boolean(config.publicKey) && !notice;
-  $: statusLabel = loading
-    ? "Đang tải"
-    : config.publicKey
-      ? notice
-        ? "Lỗi kết nối"
-        : "Đã đồng bộ"
-      : "Chưa kết nối";
-  $: connectionLabel = connected ? `Đã kết nối · ${config.table}` : "Chưa kết nối";
+  $: connectionLabel = connected
+    ? `Đã kết nối · ${config.table}`
+    : "Chưa kết nối";
 
   // Tải cấu hình cột từ cf_field_config (TableName = module.defaultTable, xem
   // field-config-service.ts) — độc lập với loadRows(), gọi song song lúc kết nối sẵn sàng.
@@ -182,7 +183,10 @@
   }
 
   async function saveFieldConfigRow(
-    payload: Omit<FieldConfigRow, "id" | "TableName" | "DefaultFieldOrderIndex">,
+    payload: Omit<
+      FieldConfigRow,
+      "id" | "TableName" | "DefaultFieldOrderIndex"
+    >,
   ) {
     fieldConfigSaving = true;
     fieldConfigSaveError = "";
@@ -227,10 +231,18 @@
 
   // Đổi chỗ DefaultFieldOrderIndex với hàng liền kề (theo thứ tự đang hiển thị) — không kéo-thả,
   // chỉ hoán đổi 2 giá trị bằng 2 lệnh update chạy song song.
-  async function moveFieldConfigRow(row: FieldConfigRow, direction: "up" | "down") {
+  async function moveFieldConfigRow(
+    row: FieldConfigRow,
+    direction: "up" | "down",
+  ) {
     const index = fieldConfigRows.findIndex((item) => item.id === row.id);
     const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (index === -1 || targetIndex < 0 || targetIndex >= fieldConfigRows.length) return;
+    if (
+      index === -1 ||
+      targetIndex < 0 ||
+      targetIndex >= fieldConfigRows.length
+    )
+      return;
     const target = fieldConfigRows[targetIndex];
     try {
       await Promise.all([
@@ -358,60 +370,68 @@
       notice = `Không thể xóa hồ sơ: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
-
 </script>
 
 <svelte:head><title>{module.label}</title></svelte:head>
 
 <section class="flex h-full min-h-0 flex-col overflow-hidden">
-  <div class="mt-2 mx-2 flex flex-wrap items-start justify-end gap-2">
-        <Button on:click={loadRows}>↻ Làm mới</Button>
-        <Button disabled={!selectedRow} on:click={() => selectedRow && openEdit(selectedRow)}
-          >✎ Sửa</Button
-        >
-        <Button
-          variant="primary"
-          disabled={fieldConfigLoading || !fieldConfigs.length}
-          on:click={openCreate}>＋ Thêm</Button
-        >
-  </div>
-
-  <div class="mt-2 px-2 border-b-1 border-slate-300 shadow-md z-38">
-    <nav class="-mb-px flex items-center overflow-x-auto" aria-label="Chuyển tab">
-      {#each tabs as tab}
-        <div class="flex items-center gap-1 whitespace-nowrap px-2 py-2 rounded-t text-sm font-medium transition-colors
-            {activeTab === tab.id ? 'border-b-2 border-primary-500 bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-primary-700'}">
-          <button
-            type="button"
-            class=""
-            on:click={() => selectTab(tab.id)}
+  <div class="mt-2 px-2 border-b-1 border-slate-300 shadow-md z-38 flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-2">
+    <div class="order-2 sm:order-1">
+      <nav
+        class="-mb-px flex items-center overflow-x-auto"
+        aria-label="Chuyển tab"
+      >
+        {#each tabs as tab}
+          <div
+            class="flex items-center gap-1 whitespace-nowrap px-0 py-0 rounded-t text-sm font-medium transition-colors
+            {activeTab === tab.id
+              ? 'border-b-2 border-primary-500 bg-primary-50 text-primary-700'
+              : 'text-slate-500 hover:text-primary-700'}"
           >
-            {tab.label}
-          </button>
-          {#if tab.id === "list"}
-            <Button
-              ariaLabel="Bộ lọc"
-              title="Bộ lọc"
-              variant="ghost"
-              extraClass="!m-0 !p-0 !px-1 hover:!bg-primary-100"
-              on:click={() => (showFilters = !showFilters)}
+            <button
+              type="button"
+              class="px-2 py-2"
+              on:click={() => selectTab(tab.id)}
             >
-              <svg
-                class="h-4 w-4 shrink-0"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+              {tab.label}
+            </button>
+            {#if tab.id === "list"}
+              <Button
+                ariaLabel="Bộ lọc"
+                title="Bộ lọc"
+                variant="ghost"
+                extraClass="!m-0 !p-1 !px-1 hover:!bg-primary-100"
+                on:click={() => (showFilters = !showFilters)}
               >
-                <path d="M4 5h16l-6 8v6l-4 2v-8z" />
-              </svg>
-            </Button>
-          {/if}
-        </div>
-      {/each}
-    </nav>
+                <svg
+                  class="h-4 w-4 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 5h16l-6 8v6l-4 2v-8z" />
+                </svg>
+              </Button>
+            {/if}
+          </div>
+        {/each}
+      </nav>
+    </div>
+    <div class="order-1 sm:order-2 flex flex-wrap items-center justify-center gap-2">
+      <Button on:click={loadRows}>↻ Làm mới</Button>
+      <Button
+        disabled={!selectedRow}
+        on:click={() => selectedRow && openEdit(selectedRow)}>✎ Sửa</Button
+      >
+      <Button
+        variant="primary"
+        disabled={fieldConfigLoading || !fieldConfigs.length}
+        on:click={openCreate}>＋ Thêm</Button
+      >
+    </div>
   </div>
 
   {#if notice}
@@ -423,11 +443,7 @@
     </div>
   {/if}
 
-  {#if activeTab === "overview"}
-    <div class="mt-2">
-      <StatCards totalRows={rows.length} {statusLabel} />
-    </div>
-  {:else if activeTab === "list"}
+  {#if activeTab === "list"}
     {#if listContentReady}
       <DataViewTable
         fields={displayFields}
@@ -441,7 +457,9 @@
         storageKey={module.storageKey}
       />
     {:else}
-      <div class="px-5 py-16 text-center text-sm text-slate-500">Đang tải dữ liệu...</div>
+      <div class="px-5 py-16 text-center text-sm text-slate-500">
+        Đang tải dữ liệu...
+      </div>
     {/if}
   {:else if activeTab === "config"}
     <FieldConfigPanel

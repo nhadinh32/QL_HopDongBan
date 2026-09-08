@@ -67,7 +67,6 @@ src/
 │           └── DataViewFormModal.svelte # Modal thêm/sửa một hồ sơ
 └── features/data-view/
     ├── DataViewManager.svelte       # "Nhạc trưởng" của một module: state + toàn bộ logic nghiệp vụ
-    ├── StatCards.svelte             # 2 thẻ số liệu nhanh ở tab Tổng quan (tổng hồ sơ, trạng thái)
     └── ConnectionSettingsPanel.svelte # Form nhập URL/API key/tên bảng Supabase
 ```
 
@@ -79,14 +78,13 @@ src/
 App.svelte
  └─ AppShell (sidebar dùng chung, đọc MODULES để sinh menu)
      └─ DataViewManager (mount lại mỗi khi đổi module, nhờ {#key activeModuleId})
-         ├─ Tab "Tổng quan" → StatCards
          ├─ Tab "Danh sách" → DataViewFilters + DataViewTable → DataViewTableGroupRows
          ├─ Tab "Cài đặt"  → ConnectionSettingsPanel
          ├─ DataViewFormModal (thêm/sửa, hiện đè lên khi editRecord !== undefined)
          └─ ConfirmDialog (xác nhận xóa)
 ```
 
-`DataViewManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại — `StatCards`/`ConnectionSettingsPanel` trong `features/data-view/`, và `DataViewTable`/`DataViewFilters`/`DataViewFormModal`/`DataViewTableGroupRows` dùng chung trong `lib/components/ui/` — thuần hiển thị: nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`). Đặt 4 component này trong `lib/components/ui/` (thay vì `features/data-view/`) để có thể dựng nhiều bảng dữ liệu độc lập ở nơi khác trong app mà không phải phụ thuộc vào `DataViewManager`.
+`DataViewManager.svelte` là nơi giữ toàn bộ **state** (danh sách bản ghi, cấu hình cột, bộ lọc, sắp xếp, dòng đang chọn, trạng thái kết nối...) và **logic** (gọi Supabase, tính bản ghi đã lọc/sắp xếp/nhóm, tính id tự động...). Các component còn lại — `ConnectionSettingsPanel` trong `features/data-view/`, và `DataViewTable`/`DataViewFilters`/`DataViewFormModal`/`DataViewTableGroupRows` dùng chung trong `lib/components/ui/` — thuần hiển thị: nhận dữ liệu qua props và báo sự kiện ra ngoài qua các callback prop dạng `onXxx` (quy ước xuyên suốt dự án, thay vì dùng `createEventDispatcher`). Đặt 4 component này trong `lib/components/ui/` (thay vì `features/data-view/`) để có thể dựng nhiều bảng dữ liệu độc lập ở nơi khác trong app mà không phải phụ thuộc vào `DataViewManager`.
 
 ### Vì sao cột dữ liệu không hard-code trong component?
 
@@ -248,10 +246,6 @@ Nhận `filterFields` (đã tính sẵn ở `DataViewManager`) và render mỗi 
 ### `DataViewFormModal.svelte` — modal thêm/sửa
 
 Render **động** một `<label>` + ô nhập cho mỗi cột trong `visibleFields` (tức `fieldConfigs` trừ `id` — cột `id` không bao giờ cho sửa tay, hồ sơ mới lấy id tự động từ `DataViewManager`). Loại ô nhập chọn theo `field.type`: `textarea` cho `LongText`, `SelectCombobox` cho mọi field `isSelectType` (đơn/nhiều, có/không cho gõ tự do tuỳ `allowsCustomValue`), `input type="date"`/`"datetime-local"` cho `Date`/`DateTime`, `type="number"` cho các cột số, còn lại là `text`. Tiêu đề modal hiện `"Sửa hồ sơ #<id>"` hoặc `"Thêm hồ sơ #<id>"` (id đã được tự gán sẵn) tuỳ theo có `editRecord` hay không; nút "Xóa hồ sơ" chỉ hiện khi đang sửa.
-
-### `StatCards.svelte` — thẻ số liệu tổng quan
-
-Hai thẻ tĩnh: tổng số hồ sơ và trạng thái đồng bộ — dữ liệu tính sẵn ở `DataViewManager` và truyền vào qua props, component này không tự tính toán gì.
 
 ### `ConnectionSettingsPanel.svelte` — cấu hình kết nối
 
