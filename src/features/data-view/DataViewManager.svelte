@@ -6,19 +6,12 @@
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
   import { consumeConnectionConfigFromUrl } from "$lib/utils/connection-from-url";
-  import {
-    loadFieldConfig,
-    loadFieldConfigRows,
-    createFieldConfigRow,
-    updateFieldConfigRow,
-    deleteFieldConfigRow,
-  } from "$lib/services/field-config-service";
+  import { loadFieldConfig } from "$lib/services/field-config-service";
   import {
     isNumericType,
     DEFAULT_VIEW_ID,
     DEFAULT_VIEW_LABEL,
     type FieldConfig,
-    type FieldConfigRow,
   } from "$lib/types/field-config";
   import type {
     ConnectionConfig,
@@ -31,8 +24,7 @@
   import DataViewTable from "$lib/components/ui/DataViewTable.svelte";
   import DataViewFormModal from "$lib/components/ui/DataViewFormModal.svelte";
   import ConnectionSettingsPanel from "./ConnectionSettingsPanel.svelte";
-  import FieldConfigPanel from "./FieldConfigPanel.svelte";
-  import FieldConfigFormModal from "./FieldConfigFormModal.svelte";
+  import FieldConfigTab from "./FieldConfigTab.svelte";
 
   export let module: DataModuleConfig;
 
@@ -72,15 +64,6 @@
   let saving = false;
   let listContentReady = false;
 
-  // Danh sách cột THÔ (chưa parse, kèm id/TableName thật) dùng riêng cho tab "Cấu hình" —
-  // khác với fieldConfigs (đã parse) dùng cho bảng/lọc/form hồ sơ.
-  let fieldConfigRows: FieldConfigRow[] = [];
-  let fieldConfigRowsLoading = false;
-  let editFieldConfigRow: FieldConfigRow | null | undefined = undefined;
-  let deleteFieldConfigRowTarget: FieldConfigRow | null = null;
-  let fieldConfigSaveError = "";
-  let fieldConfigSaving = false;
-
   // Trì hoãn việc mount DataViewTable đúng 1 nhịp (setTimeout 0 — chạy sau khi trình duyệt đã
   // kịp vẽ xong lượt cập nhật hiện tại, gồm cả trạng thái tab đang chọn) để bấm tab phản hồi
   // ngay lập tức, còn phần dựng bảng (nặng: tính lại filter/sort/group + tạo DOM) hiện
@@ -95,7 +78,6 @@
   function selectTab(tabId: string): void {
     activeTab = tabId;
     if (isViewTab(tabId)) armListContent();
-    if (tabId === "config") loadFieldConfigRowsForEditor();
   }
 
   if (isViewTab(activeTab)) armListContent();
@@ -157,11 +139,6 @@
   // Cột hiện trong bảng danh sách theo mặc định (DefaultDisplayField=true) CỦA RIÊNG view đang xem.
   $: displayFields = fieldConfigsForActiveView.filter((field) => field.defaultDisplay);
 
-  // Danh sách THÔ đã lọc theo view đang chọn — dùng cho tab "Cấu hình" và moveFieldConfigRow.
-  $: fieldConfigRowsForActiveView = fieldConfigRows.filter(
-    (r) => (r.ViewName?.[0] || DEFAULT_VIEW_ID) === activeViewId,
-  );
-
   // Loại trùng theo FieldName (ưu tiên dòng xuất hiện trước) — dùng cho form Thêm/Sửa hồ sơ, vì
   // trùng FieldName giữa nhiều view giờ là hợp lệ nhưng form sửa 1 hồ sơ chỉ cần hỏi 1 lần.
   $: recordFormFields = fieldConfigs.reduce<FieldConfig[]>((acc, f) => {
@@ -185,118 +162,6 @@
       fieldConfigs = [];
     } finally {
       fieldConfigLoading = false;
-    }
-  }
-
-  // Tải danh sách cột THÔ cho tab "Cấu hình" — gọi lại mỗi khi vào tab này hoặc sau khi
-  // thêm/sửa/xóa/sắp xếp lại một cột.
-  async function loadFieldConfigRowsForEditor() {
-    if (!config.url || !config.publicKey) return;
-    fieldConfigRowsLoading = true;
-    try {
-      fieldConfigRows = await loadFieldConfigRows(config, module.defaultTable);
-    } catch (error) {
-      notice = `Không tải được cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
-      fieldConfigRows = [];
-    } finally {
-      fieldConfigRowsLoading = false;
-    }
-  }
-
-  // Đồng bộ lại cả 2 nguồn cấu hình sau khi thêm/sửa/xóa/sắp xếp một cột — để tab "Danh sách"
-  // (fieldConfigs đã parse) cập nhật ngay, không cần tải lại trang.
-  async function refreshFieldConfigs() {
-    await Promise.all([loadFieldConfigRowsForEditor(), loadFieldConfigs()]);
-  }
-
-  function openCreateFieldConfigRow(): void {
-    editFieldConfigRow = null;
-    fieldConfigSaveError = "";
-  }
-
-  function openEditFieldConfigRow(row: FieldConfigRow): void {
-    editFieldConfigRow = row;
-    fieldConfigSaveError = "";
-  }
-
-  function closeFieldConfigEdit(): void {
-    editFieldConfigRow = undefined;
-  }
-
-  async function saveFieldConfigRow(
-    payload: Omit<
-      FieldConfigRow,
-      "id" | "TableName" | "DefaultFieldOrderIndex"
-    >,
-  ) {
-    fieldConfigSaving = true;
-    fieldConfigSaveError = "";
-    try {
-      if (editFieldConfigRow) {
-        await updateFieldConfigRow(config, editFieldConfigRow.id, payload);
-      } else {
-        const maxOrderIndex = fieldConfigRows.reduce(
-          (max, row) => Math.max(max, row.DefaultFieldOrderIndex ?? 0),
-          0,
-        );
-        await createFieldConfigRow(config, {
-          ...payload,
-          TableName: module.defaultTable,
-          DefaultFieldOrderIndex: maxOrderIndex + 1,
-        });
-      }
-      closeFieldConfigEdit();
-      await refreshFieldConfigs();
-    } catch (error) {
-      fieldConfigSaveError = `Không thể lưu cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      fieldConfigSaving = false;
-    }
-  }
-
-  function requestDeleteFieldConfigRow(row: FieldConfigRow): void {
-    deleteFieldConfigRowTarget = row;
-  }
-
-  async function removeFieldConfigRow() {
-    try {
-      if (!deleteFieldConfigRowTarget) return;
-      await deleteFieldConfigRow(config, deleteFieldConfigRowTarget.id);
-      deleteFieldConfigRowTarget = null;
-      await refreshFieldConfigs();
-    } catch (error) {
-      deleteFieldConfigRowTarget = null;
-      notice = `Không thể xóa cấu hình cột: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  // Đổi chỗ DefaultFieldOrderIndex với hàng liền kề (theo thứ tự đang hiển thị) — không kéo-thả,
-  // chỉ hoán đổi 2 giá trị bằng 2 lệnh update chạy song song.
-  async function moveFieldConfigRow(
-    row: FieldConfigRow,
-    direction: "up" | "down",
-  ) {
-    const index = fieldConfigRowsForActiveView.findIndex((item) => item.id === row.id);
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (
-      index === -1 ||
-      targetIndex < 0 ||
-      targetIndex >= fieldConfigRowsForActiveView.length
-    )
-      return;
-    const target = fieldConfigRowsForActiveView[targetIndex];
-    try {
-      await Promise.all([
-        updateFieldConfigRow(config, row.id, {
-          DefaultFieldOrderIndex: target.DefaultFieldOrderIndex,
-        }),
-        updateFieldConfigRow(config, target.id, {
-          DefaultFieldOrderIndex: row.DefaultFieldOrderIndex,
-        }),
-      ]);
-      await refreshFieldConfigs();
-    } catch (error) {
-      notice = `Không thể đổi thứ tự cột: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 
@@ -483,14 +348,12 @@
       </div>
     {/if}
   {:else if activeTab === "config"}
-    <FieldConfigPanel
-      rows={fieldConfigRowsForActiveView}
-      loading={fieldConfigRowsLoading}
-      viewLabel={views.find((v) => v.id === activeViewId)?.label ?? DEFAULT_VIEW_LABEL}
-      onCreate={openCreateFieldConfigRow}
-      onEdit={openEditFieldConfigRow}
-      onDelete={requestDeleteFieldConfigRow}
-      onMove={moveFieldConfigRow}
+    <FieldConfigTab
+      {config}
+      tableName={module.defaultTable}
+      initialViewId={activeViewId}
+      onChanged={loadFieldConfigs}
+      onError={(message) => (notice = message)}
     />
   {:else}
     <div class="mt-2">
@@ -519,33 +382,5 @@
     confirmLabel="Xóa hồ sơ"
     onCancel={() => (deleteRecord = null)}
     onConfirm={removeRecord}
-  />
-{/if}
-
-{#if editFieldConfigRow !== undefined}
-  {@const currentFieldConfigRow = editFieldConfigRow}
-  <FieldConfigFormModal
-    row={currentFieldConfigRow}
-    existingFieldNames={fieldConfigRowsForActiveView.map((row) => row.FieldName)}
-    existingViews={views.map((v) => ({ viewId: v.id, viewLabel: v.label }))}
-    initialViewId={activeViewId}
-    initialViewLabel={views.find((v) => v.id === activeViewId)?.label ?? DEFAULT_VIEW_LABEL}
-    saveError={fieldConfigSaveError}
-    saving={fieldConfigSaving}
-    onClose={closeFieldConfigEdit}
-    onSubmit={saveFieldConfigRow}
-    onDelete={currentFieldConfigRow
-      ? () => requestDeleteFieldConfigRow(currentFieldConfigRow)
-      : undefined}
-  />
-{/if}
-
-{#if deleteFieldConfigRowTarget}
-  <ConfirmDialog
-    title="Xóa cấu hình cột?"
-    description={`Cột "${deleteFieldConfigRowTarget.Label || deleteFieldConfigRowTarget.FieldName}" sẽ bị ẩn khỏi bảng danh sách và form. Dữ liệu thật trong bảng ${config.table} không bị xóa.`}
-    confirmLabel="Xóa cấu hình"
-    onCancel={() => (deleteFieldConfigRowTarget = null)}
-    onConfirm={removeFieldConfigRow}
   />
 {/if}

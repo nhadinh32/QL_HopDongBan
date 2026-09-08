@@ -20,11 +20,11 @@
   export let row: FieldConfigRow | null;
   // Tên các cột khác đã cấu hình trong cùng view — dùng cho dropdown "cột hiện nội dung nhóm".
   export let existingFieldNames: string[];
-  // Toàn bộ view đã có của module — dùng cho dropdown chọn view bên dưới.
-  export let existingViews: { viewId: string; viewLabel: string }[];
-  // View đang xem gần nhất ở DataViewManager — dùng làm giá trị mặc định khi tạo cột mới.
-  export let initialViewId: string;
-  export let initialViewLabel: string;
+  // View đang thao tác — luôn do màn cha (DataViewManager, qua FieldConfigViewList) quyết định,
+  // cố định trong suốt vòng đời modal này. Tạo/đổi tên/xóa view là hành động riêng ở sidebar,
+  // form 1 cột không tự tạo view nữa.
+  export let viewId: string;
+  export let viewLabel: string;
   export let saveError: string;
   export let saving: boolean;
   export let onClose: () => void;
@@ -54,11 +54,6 @@
   let groupDisplayField = row?.DefaultPositionFieldNamShowGroup ?? "";
   let subtotal: SubtotalType | null = toSubtotalType(row?.Subtotal ?? null);
 
-  const NEW_VIEW = "__new__";
-  let viewSelection = row?.ViewName?.[0] ?? initialViewId;
-  let newViewId = "";
-  let newViewLabel = "";
-
   $: groupDisplayFieldOptions = existingFieldNames.filter((name) => name !== fieldName);
 
   function toNumberOrNull(value: string): number | null {
@@ -67,11 +62,6 @@
 
   function handleSubmit(): void {
     const priority = toNumberOrNull(sortPriority);
-    const finalViewId = viewSelection === NEW_VIEW ? newViewId.trim() : viewSelection;
-    const finalViewLabel =
-      viewSelection === NEW_VIEW
-        ? newViewLabel.trim()
-        : (existingViews.find((v) => v.viewId === viewSelection)?.viewLabel ?? initialViewLabel);
     onSubmit({
       FieldName: fieldName.trim(),
       Label: label.trim(),
@@ -91,7 +81,7 @@
       DefaultRowGroupOrder: toNumberOrNull(groupOrder),
       DefaultPositionFieldNamShowGroup: groupDisplayField.trim() === "" ? null : groupDisplayField,
       Subtotal: subtotal ? toDbCase(subtotal) : null,
-      ViewName: [finalViewId, finalViewLabel],
+      ViewName: [viewId, viewLabel],
     });
   }
 </script>
@@ -145,33 +135,12 @@
             Hiện trong bảng danh sách
           </label>
           <label class="mb-4">
-            View (tab hiển thị)
-            <select class="mt-1.5" bind:value={viewSelection}>
-              {#each existingViews as v (v.viewId)}
-                <option value={v.viewId}>{v.viewLabel}</option>
-              {/each}
-              <option value={NEW_VIEW}>+ Tạo view mới…</option>
-            </select>
+            Thuộc view
+            <input class="mt-1.5 bg-slate-100 text-slate-500" value={viewLabel} readonly />
+            <span class="mt-1 block text-xs text-slate-400"
+              >Cột luôn thuộc view đang chọn ở danh sách View bên trái.</span
+            >
           </label>
-          {#if viewSelection === NEW_VIEW}
-            <label class="mb-4">
-              Mã view (ViewID)
-              <input class="mt-1.5" bind:value={newViewId} required placeholder="vd. tai-chinh" />
-            </label>
-            <label class="mb-4">
-              Tên tab hiển thị (ViewLabel)
-              <input
-                class="mt-1.5"
-                bind:value={newViewLabel}
-                required
-                placeholder="vd. Tài chính"
-              />
-            </label>
-          {/if}
-          <p class="mb-4 -mt-2.5 text-xs text-slate-400 sm:col-span-2">
-            Chọn lại 1 tên cột kỹ thuật đã tồn tại ở view khác + đổi view = tạo bản sao cấu hình
-            riêng cho view mới (filter/sort/style độc lập), không phải "chuyển" cột sang view khác.
-          </p>
         </div>
 
         <!-- Bộ lọc -->

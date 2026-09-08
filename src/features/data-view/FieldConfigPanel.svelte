@@ -3,6 +3,7 @@
   // cho phép thêm/sửa/xóa/sắp xếp lại ngay trong UI thay vì phải vào thẳng Supabase Table Editor.
   import Button from "$lib/components/ui/Button.svelte";
   import Badge from "$lib/components/ui/Badge.svelte";
+  import ConfirmDialog from "$lib/components/ui/ConfirmDialog.svelte";
   import {
     FIELD_TYPE_OPTIONS,
     FILTER_TYPE_OPTIONS,
@@ -11,10 +12,16 @@
 
   export let rows: FieldConfigRow[];
   export let loading: boolean;
-  export let viewLabel: string;
+  // Tên bảng dữ liệu thật của module (config.table) — chỉ dùng để nhắc trong ConfirmDialog xóa
+  // cột rằng dữ liệu thật không bị ảnh hưởng.
+  export let tableName: string;
+  // Cột đang chờ xác nhận xóa — bind 2 chiều với DataViewManager vì có 2 nơi có thể yêu cầu xóa
+  // 1 cột: nút "Xóa" trong bảng dưới đây, VÀ nút "Xóa" trong FieldConfigFormModal (sửa cột).
+  export let deleteTarget: FieldConfigRow | null = null;
   export let onCreate: () => void;
   export let onEdit: (row: FieldConfigRow) => void;
-  export let onDelete: (row: FieldConfigRow) => void;
+  // Thực sự xóa (network call) — chỉ gọi SAU KHI người dùng xác nhận ở ConfirmDialog bên dưới.
+  export let onConfirmDelete: () => void;
   export let onMove: (row: FieldConfigRow, direction: "up" | "down") => void;
 
   const fieldTypeLabel = (value: string): string =>
@@ -31,10 +38,9 @@
 <section class="flex h-full min-h-0 flex-col overflow-hidden">
   <div class="mt-2 mx-2 flex flex-wrap items-start justify-between gap-2">
     <div>
-      <h2 class="text-lg font-semibold text-slate-900">Cấu hình cột dữ liệu — view "{viewLabel}"</h2>
+      <h3 class="text-lg font-semibold text-slate-900">Cấu hình cột dữ liệu</h3>
       <p class="mt-0.5 text-sm text-slate-500">
-        Thêm/sửa/xóa cột hiển thị và đổi thứ tự — áp dụng ngay cho tab Danh sách, không cần tải lại
-        trang.
+        Thêm/sửa/xóa cột hiển thị và đổi thứ tự.
       </p>
     </div>
     <Button variant="primary" disabled={loading} on:click={onCreate}>＋ Thêm cột</Button>
@@ -44,7 +50,7 @@
     {#if loading}
       <div class={emptyStateClass}>Đang tải cấu hình...</div>
     {:else if !rows.length}
-      <div class={emptyStateClass}>Chưa có cột nào được cấu hình cho view "{viewLabel}".</div>
+      <div class={emptyStateClass}>Chưa có cột nào được cấu hình cho view này.</div>
     {:else}
       <table class="w-full border-separate border-spacing-0 text-sm">
         <thead>
@@ -98,7 +104,7 @@
                   <Button
                     variant="danger"
                     extraClass="!px-2 !py-1 text-xs"
-                    on:click={() => onDelete(row)}>Xóa</Button
+                    on:click={() => (deleteTarget = row)}>Xóa</Button
                   >
                 </div>
               </td>
@@ -109,3 +115,13 @@
     {/if}
   </div>
 </section>
+
+{#if deleteTarget}
+  <ConfirmDialog
+    title="Xóa cấu hình cột?"
+    description={`Cột "${deleteTarget.Label || deleteTarget.FieldName}" sẽ bị ẩn khỏi bảng danh sách và form. Dữ liệu thật trong bảng ${tableName} không bị xóa.`}
+    confirmLabel="Xóa cấu hình"
+    onCancel={() => (deleteTarget = null)}
+    onConfirm={onConfirmDelete}
+  />
+{/if}
