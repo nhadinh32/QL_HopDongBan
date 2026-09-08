@@ -5,6 +5,7 @@
   // ngoài, mỗi mục sidebar mount một DataViewManager riêng với module tương ứng.
   import { onMount } from "svelte";
   import { createSupabaseRestClient } from "$lib/services/supabase-rest";
+  import { consumeConnectionConfigFromUrl } from "$lib/utils/connection-from-url";
   import {
     loadFieldConfig,
     loadFieldConfigRows,
@@ -103,6 +104,15 @@
         ...config,
         ...(JSON.parse(stored) as Partial<ConnectionConfig>),
       };
+
+    // Tham số trên URL fragment (#urlapi=&apikey=&tablename=) luôn ưu tiên hơn cấu hình đã lưu — dùng để
+    // chia sẻ link tự động cấu hình kết nối. Đọc xong tự lưu lại localStorage và dọn sạch URL.
+    const fromUrl = consumeConnectionConfigFromUrl();
+    if (Object.keys(fromUrl).length > 0) {
+      config = { ...config, ...fromUrl, table: fromUrl.table?.trim() || config.table };
+      localStorage.setItem(module.storageKey, JSON.stringify(config));
+    }
+
     if (config.publicKey) {
       loadFieldConfigs();
       loadRows();
