@@ -1,0 +1,37 @@
+// Kiểu giá trị có thể trao đổi với Supabase REST cho một ô dữ liệu.
+export type DataValue = string | number | boolean | null | undefined;
+
+// Bản ghi có cấu trúc động vì cột được lấy trực tiếp từ bảng Supabase của người dùng.
+export interface DataRecord {
+  id: string | number;
+  [field: string]: DataValue;
+}
+
+// Cấu hình kết nối chỉ được lưu trong localStorage của trình duyệt.
+export interface ConnectionConfig {
+  url: string;
+  publicKey: string;
+  table: string;
+}
+
+// Hướng và độ ưu tiên dùng cho sắp xếp nhiều cột trên bảng danh sách.
+export type SortDirection = 'asc' | 'desc';
+
+export interface SortField {
+  field: string;
+  direction: SortDirection;
+}
+
+// Khai báo một module dữ liệu (một bảng Supabase) hiển thị như một mục trong sidebar.
+// Mỗi module có kết nối Supabase (URL/API key/tên bảng) — danh sách cột, nhãn, kiểu
+// nhập liệu, cách lọc... không còn khai báo ở đây nữa mà đọc động từ bảng cf_field_config
+// (xem $lib/types/field-config.ts + $lib/services/field-config-service.ts), lọc theo
+// TableName = defaultTable của module. Thêm module mới bằng cách tạo một cấu hình tương tự
+// trong $lib/constants/modules, rồi thêm các dòng field tương ứng vào cf_field_config.
+export interface DataModuleConfig {
+  id: string;
+  label: string;
+  storageKey: string;
+  defaultUrl: string;
+  defaultTable: string;
+}
