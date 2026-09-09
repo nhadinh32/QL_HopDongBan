@@ -31,7 +31,7 @@
 
   const emptyStateClass = "px-5 py-16 text-center text-sm text-slate-500";
   const headerCellClass =
-    "sticky top-0 z-10 bg-primary-900 border border-slate-700 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-primary-50";
+    "sticky top-0 z-10 bg-green-50 border border-green-200 px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-green-900";
   const cellClass = "border-y border-y-slate-300 px-2 py-1.5 align-top";
 </script>
 
