@@ -114,7 +114,7 @@
   const emptyStateClass = "px-5 py-16 text-center text-sm text-slate-500";
   // Style dùng chung cho mọi <th> ở header (cả cột gutter lẫn cột dữ liệu).
   const headerCellClass =
-    "sticky top-0 z-10 bg-primary-900 border border-slate-700 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-primary-50";
+    "sticky top-0 z-10 bg-green-50 border border-green-200 px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-green-900";
 
   // Nhóm nào đã bị thu gọn — rỗng = tất cả mở mặc định. Không lưu vào localStorage, mất khi
   // tải lại trang (đúng quyết định đã chốt: state chỉ trong phiên đang dùng).

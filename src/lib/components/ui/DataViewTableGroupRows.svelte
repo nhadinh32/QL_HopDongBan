@@ -91,7 +91,7 @@
     {#each node.rows as row (row.id)}
       <tr
         class="cursor-pointer"
-        class:bg-slate-50={selectedRow === row}
+        class:bg-green-50={selectedRow === row}
         on:click={() => onRowClick(row)}
       >
         {#if showCollapseColumn}
